@@ -3,92 +3,141 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <meta name="description" content="BRON-powered security and compliance agent — passive vulnerability assessment and threat intelligence mapping for any domain." />
-  <title>BRON Security Agent</title>
+  <meta name="description" content="BRON — vulnerability assessment and compliance mapping." />
+  <title>BRON</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
-  <div class="bg-orbs">
-    <div class="orb orb-1"></div>
-    <div class="orb orb-2"></div>
-    <div class="orb orb-3"></div>
-  </div>
-  <header class="header">
-    <div class="header-inner">
-      <div class="logo">
+
+  <!-- Login Page -->
+  <div id="login-page" class="login-page">
+    <div class="login-card">
+      <div class="login-logo">
         <div class="logo-icon">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
         </div>
-        <div>
+        <span class="login-logo-text">BRON</span>
+      </div>
+      <h2 class="login-title">Sign in to your account</h2>
+      <div id="login-error" class="login-error hidden">Invalid username or password.</div>
+      <div class="login-field">
+        <label for="login-user">Username</label>
+        <input id="login-user" type="text" placeholder="Enter username" autocomplete="off" />
+      </div>
+      <div class="login-field">
+        <label for="login-pass">Password</label>
+        <input id="login-pass" type="password" placeholder="Enter password" />
+      </div>
+      <button id="login-btn" onclick="doLogin()">Sign In</button>
+    </div>
+  </div>
+
+  <!-- Main App (hidden until logged in) -->
+  <div id="app-page" class="hidden">
+    <div class="bg-orbs">
+      <div class="orb orb-1"></div>
+      <div class="orb orb-2"></div>
+      <div class="orb orb-3"></div>
+    </div>
+
+    <header class="header">
+      <div class="header-inner">
+        <div class="logo">
+          <div class="logo-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+          </div>
           <span class="logo-text">BRON</span>
-          <span class="logo-sub">Security Agent</span>
+        </div>
+
+        <div class="profile-menu-wrap">
+          <button class="profile-btn" onclick="toggleProfileMenu()" id="profile-btn">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="20" height="20"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg>
+            <span id="profile-username">User</span>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><path d="M6 9l6 6 6-6"/></svg>
+          </button>
+          <div class="profile-dropdown hidden" id="profile-dropdown">
+            <div class="profile-dropdown-name" id="dropdown-name">User</div>
+            <div class="profile-dropdown-divider"></div>
+            <button class="profile-signout" onclick="doSignOut()">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="15" height="15"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+              Sign Out
+            </button>
+          </div>
         </div>
       </div>
-      <div class="header-badge">Powered by BRON · NVD · ATT&amp;CK</div>
-    </div>
-  </header>
-  <main class="main">
-    <section class="hero">
-      <h1 class="hero-title">Threat Intelligence <span class="gradient-text">Analysis</span></h1>
-      <p class="hero-sub">Passive vulnerability assessment &amp; compliance mapping using the BRON threat graph</p>
-      <div class="input-card">
-        <div class="input-wrapper">
-          <div class="input-icon">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+    </header>
+
+    <main class="main">
+      <section class="hero">
+        <p id="greeting-text" class="greeting-text"></p>
+        <h1 class="hero-title">Threat Intelligence <span class="gradient-text">Analysis</span></h1>
+        <div class="input-card">
+          <div class="input-wrapper">
+            <div class="input-icon">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+            </div>
+            <input id="target-input" type="text" placeholder="Enter domain or URL  e.g. example.com" autocomplete="off" spellcheck="false" />
+            <button id="analyze-btn" onclick="startAnalysis()">
+              <span id="btn-text">Analyze</span>
+              <div id="btn-spinner" class="spinner hidden"></div>
+            </button>
           </div>
-          <input id="target-input" type="text" placeholder="Enter domain or URL  e.g. example.com" autocomplete="off" spellcheck="false" />
-          <button id="analyze-btn" onclick="startAnalysis()">
-            <span id="btn-text">Analyze</span>
-            <div id="btn-spinner" class="spinner hidden"></div>
+        </div>
+      </section>
+
+      <section id="pipeline-section" class="pipeline-section hidden">
+        <div class="pipeline-steps">
+          <div class="step" id="step-recon">
+            <div class="step-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg></div>
+            <div class="step-label">Recon</div><div class="step-status"></div>
+          </div>
+          <div class="step-connector"></div>
+          <div class="step" id="step-vuln">
+            <div class="step-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 9v4M12 17h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/></svg></div>
+            <div class="step-label">Vulnerability</div><div class="step-status"></div>
+          </div>
+          <div class="step-connector"></div>
+          <div class="step" id="step-bron">
+            <div class="step-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.07 4.93a10 10 0 010 14.14M4.93 4.93a10 10 0 000 14.14"/></svg></div>
+            <div class="step-label">BRON Graph</div><div class="step-status"></div>
+          </div>
+          <div class="step-connector"></div>
+          <div class="step" id="step-compliance">
+            <div class="step-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/></svg></div>
+            <div class="step-label">Compliance</div><div class="step-status"></div>
+          </div>
+        </div>
+      </section>
+
+      <section id="results-section" class="results-section hidden">
+        <div class="score-cards" id="score-cards"></div>
+        <div class="tabs-row">
+          <div class="tabs">
+            <button class="tab active" onclick="switchTab('vuln')" id="tab-vuln">Vulnerabilities</button>
+            <button class="tab" onclick="switchTab('compliance')" id="tab-compliance">Compliance</button>
+          </div>
+          <button class="download-btn hidden" id="download-btn" onclick="downloadReport()">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="15" height="15"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+            Download Report
           </button>
         </div>
-        <p class="input-hint">Passive recon only — DNS, HTTP headers, NVD CVE lookup, BRON graph traversal</p>
-      </div>
-    </section>
-    <section id="pipeline-section" class="pipeline-section hidden">
-      <div class="pipeline-steps">
-        <div class="step" id="step-recon">
-          <div class="step-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg></div>
-          <div class="step-label">Recon</div><div class="step-status"></div>
+        <div class="tab-content">
+          <div id="panel-vuln" class="panel active"><div id="vuln-content"></div></div>
+          <div id="panel-compliance" class="panel"><div id="compliance-content"></div></div>
         </div>
-        <div class="step-connector"></div>
-        <div class="step" id="step-vuln">
-          <div class="step-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 9v4M12 17h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/></svg></div>
-          <div class="step-label">Vulnerability</div><div class="step-status"></div>
-        </div>
-        <div class="step-connector"></div>
-        <div class="step" id="step-bron">
-          <div class="step-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.07 4.93a10 10 0 010 14.14M4.93 4.93a10 10 0 000 14.14"/></svg></div>
-          <div class="step-label">BRON Graph</div><div class="step-status"></div>
-        </div>
-        <div class="step-connector"></div>
-        <div class="step" id="step-compliance">
-          <div class="step-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/></svg></div>
-          <div class="step-label">Compliance</div><div class="step-status"></div>
-        </div>
+      </section>
+
+      <div id="error-banner" class="error-banner hidden">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 8v4M12 16h.01"/></svg>
+        <span id="error-message"></span>
       </div>
-    </section>
-    <section id="results-section" class="results-section hidden">
-      <div class="score-cards" id="score-cards"></div>
-      <div class="tabs">
-        <button class="tab active" onclick="switchTab('vuln')" id="tab-vuln">⚠️ Vulnerabilities</button>
-        <button class="tab" onclick="switchTab('compliance')" id="tab-compliance">📋 Compliance Alignments</button>
-      </div>
-      <div class="tab-content">
-        <div id="panel-vuln" class="panel active"><div id="vuln-content"></div></div>
-        <div id="panel-compliance" class="panel"><div id="compliance-content"></div></div>
-      </div>
-    </section>
-    <div id="error-banner" class="error-banner hidden">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 8v4M12 16h.01"/></svg>
-      <span id="error-message"></span>
-    </div>
-  </main>
-  <footer class="footer">
-    <p>BRON Security Agent &nbsp;·&nbsp; Threat data from <a href="https://github.com/ALFA-group/BRON" target="_blank">ALFA-group/BRON</a>, NVD, MITRE ATT&amp;CK</p>
-  </footer>
+    </main>
+  </div>
+
+  <div id="bron-tooltip" class="bron-tooltip hidden"></div>
+
   <script src="app.js"></script>
 </body>
 </html>

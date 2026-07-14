@@ -1,6 +1,111 @@
 var API_BASE = "http://localhost:5050";
 var currentData = null;
 
+var USERS = {
+  "admin": "bron123",
+  "user": "pass123"
+};
+
+// check if user already logged in on page load....
+window.addEventListener("load", function() {
+  var loggedIn = sessionStorage.getItem("bron_user");
+  if (loggedIn) {
+    showApp(loggedIn);
+  }
+});
+
+// handle login button click....
+function doLogin() {
+  var username = document.getElementById("login-user").value.trim();
+  var password = document.getElementById("login-pass").value;
+  var errEl = document.getElementById("login-error");
+
+  if (USERS[username] && USERS[username] === password) {
+    errEl.classList.add("hidden");
+    sessionStorage.setItem("bron_user", username);
+    showApp(username);
+  } else {
+    errEl.classList.remove("hidden");
+  }
+}
+
+// allow pressing enter in password field....
+document.addEventListener("DOMContentLoaded", function() {
+  var passInput = document.getElementById("login-pass");
+  if (passInput) {
+    passInput.addEventListener("keydown", function(e) {
+      if (e.key === "Enter") doLogin();
+    });
+  }
+});
+
+// show main app nd hide login page....
+function showApp(username) {
+  document.getElementById("login-page").classList.add("hidden");
+  document.getElementById("app-page").classList.remove("hidden");
+  document.getElementById("profile-username").textContent = username;
+  document.getElementById("dropdown-name").textContent = username;
+  setGreeting(username);
+}
+
+// sign out nd go back to login page....
+function doSignOut() {
+  sessionStorage.removeItem("bron_user");
+  document.getElementById("app-page").classList.add("hidden");
+  document.getElementById("login-page").classList.remove("hidden");
+  document.getElementById("login-user").value = "";
+  document.getElementById("login-pass").value = "";
+  document.getElementById("profile-dropdown").classList.add("hidden");
+}
+
+// toggle show hide profile dropdown....
+function toggleProfileMenu() {
+  var dd = document.getElementById("profile-dropdown");
+  if (dd.classList.contains("hidden")) {
+    dd.classList.remove("hidden");
+  } else {
+    dd.classList.add("hidden");
+  }
+}
+
+// close dropdown when clicking outside....
+document.addEventListener("click", function(e) {
+  var wrap = document.getElementById("profile-menu-wrap") || document.querySelector(".profile-menu-wrap");
+  var dd = document.getElementById("profile-dropdown");
+  if (dd && wrap && !wrap.contains(e.target)) {
+    dd.classList.add("hidden");
+  }
+});
+
+// set greeting text based on time of day....
+function setGreeting(username) {
+  var hour = new Date().getHours();
+  var greet = "";
+  if (hour >= 5 && hour < 12) {
+    greet = "Good morning, " + username + "!";
+  } else if (hour >= 12 && hour < 17) {
+    greet = "Good afternoon, " + username + "!";
+  } else if (hour >= 17 && hour < 21) {
+    greet = "Good evening, " + username + "!";
+  } else {
+    greet = "Welcome back, " + username + "!";
+  }
+  var el = document.getElementById("greeting-text");
+  if (el) {
+    el.textContent = "";
+    // type greeting letter by letter....
+    var i = 0;
+    var timer = setInterval(function() {
+      if (i < greet.length) {
+        el.textContent += greet[i];
+        i++;
+      } else {
+        clearInterval(timer);
+      }
+    }, 45);
+  }
+}
+
 // start scanning target nd update page....
 async function startAnalysis() {
   var inputEl = document.getElementById("target-input");
@@ -368,16 +473,26 @@ function renderCompliancePanel(compliance) {
     if (headers[i].status === "PASS") passCount++;
   }
   var headerRowsHtml = "";
-  // loop headers to build table rows....
+  // loop headers to build 3 col table rows....
   for (var j = 0; j < headers.length; j++) {
     var h = headers[j];
     var val = h.status === "PASS" ? escapeHtml(h.value || "") : "Not Set";
-    headerRowsHtml += makeTableRow(h.header, val, "", h.status);
+    var badgeClass = h.status === "PASS" ? "badge-pass" : "badge-fail";
+    var tipText = TOOLTIPS[h.header] || "";
+    var nameCell = tipText
+      ? '<span class="has-tip" onmouseenter="showTooltip(event, \'' + tipText.replace(/'/g, "\\'") + '\')" onmouseleave="hideTooltip()">' + escapeHtml(h.header) + ' <span class="tip-icon">?</span></span>'
+      : escapeHtml(h.header);
+    headerRowsHtml +=
+      '<tr class="report-row">' +
+        '<td class="header-name-cell">' + nameCell + '</td>' +
+        '<td class="header-value-cell">' + val + '</td>' +
+        '<td class="header-status-cell"><span class="report-badge ' + badgeClass + '">' + h.status + '</span></td>' +
+      '</tr>';
   }
   var headerCardHtml =
     '<div class="report-card">' +
       '<div class="report-card-header">' +
-        '<div class="report-card-title">Security Headers</div>' +
+        '<div class="report-card-title has-tip" onmouseenter="showTooltip(event, \'' + TOOLTIPS["Security Headers"] + '\')" onmouseleave="hideTooltip()">Security Headers <span class="tip-icon">?</span></div>' +
         '<div class="report-card-meta">' + passCount + " / " + headers.length + " Passed</div>" +
         '<div class="report-card-bar-wrap">' +
           '<div class="report-card-bar"><div class="report-bar-fill" style="width:' + headerScore + '%;background:' + scoreHex(headerScore) + '"></div></div>' +
@@ -385,7 +500,7 @@ function renderCompliancePanel(compliance) {
         '</div>' +
       '</div>' +
       '<table class="report-table">' +
-        '<thead><tr><th>Header</th><th>Value</th><th>Status</th></tr></thead>' +
+        '<thead><tr><th style="width:35%">Header</th><th style="width:45%">Value</th><th style="width:20%">Status</th></tr></thead>' +
         '<tbody>' + headerRowsHtml + '</tbody>' +
       '</table>' +
     '</div>';
@@ -402,12 +517,14 @@ function makeReportCard(title, metaLabel, score, count, items, rowFn) {
       rowsHtml += rowFn(items[i]);
     }
   } else {
-    rowsHtml = '<tr><td colspan="4" class="report-clear">✓ No ' + title + ' violations found</td></tr>';
+    rowsHtml = '<tr><td colspan="4" class="report-clear">No ' + title + ' violations found</td></tr>';
   }
+  var tipText = TOOLTIPS[title] || "";
+  var titleHover = tipText ? ' onmouseenter="showTooltip(event, ' + "'" + tipText + "'" + ')" onmouseleave="hideTooltip()" class="report-card-title has-tip"' : ' class="report-card-title"';
   return (
     '<div class="report-card">' +
       '<div class="report-card-header">' +
-        '<div class="report-card-title">' + title + '</div>' +
+        '<div' + titleHover + '>' + title + (tipText ? ' <span class="tip-icon">?</span>' : '') + '</div>' +
         '<div class="report-card-meta">' + count + " " + metaLabel + "</div>" +
         (score > 0 ?
           '<div class="report-card-bar-wrap">' +
@@ -427,9 +544,13 @@ function makeReportCard(title, metaLabel, score, count, items, rowFn) {
 // build a single table row with status badge....
 function makeTableRow(id, desc, trigger, status) {
   var badgeClass = status === "PASS" ? "badge-pass" : (status === "TRIGGERED" ? "badge-triggered" : "badge-fail");
+  var idTip = TOOLTIPS[id] || "";
+  var idCell = idTip
+    ? '<span class="ctrl-id has-tip" onmouseenter="showTooltip(event, \'' + idTip.replace(/'/g, "\\'") + '\')" onmouseleave="hideTooltip()">' + escapeHtml(id) + ' <span class="tip-icon">?</span></span>'
+    : '<span class="ctrl-id">' + escapeHtml(id) + '</span>';
   return (
-    '<tr>' +
-      '<td><span class="ctrl-id">' + escapeHtml(id) + '</span></td>' +
+    '<tr class="report-row">' +
+      '<td>' + idCell + '</td>' +
       '<td>' + escapeHtml(desc) + '</td>' +
       '<td class="report-trigger">' + escapeHtml(trigger) + '</td>' +
       '<td><span class="report-badge ' + badgeClass + '">' + status + '</span></td>' +
@@ -437,12 +558,14 @@ function makeTableRow(id, desc, trigger, status) {
   );
 }
 
-// build a score block in summary row....
+// build a score block in summary row with tooltip....
 function makeScoreBlock(label, score) {
+  var tipText = TOOLTIPS[label] || "";
+  var hoverAttr = tipText ? ' onmouseenter="showTooltip(event, \'' + tipText + '\')" onmouseleave="hideTooltip()" style="cursor:default"' : '';
   return (
-    '<div class="report-score-block">' +
+    '<div class="report-score-block"' + hoverAttr + '>' +
       '<div class="report-score-val" style="color:' + scoreHex(score) + '">' + score + '%</div>' +
-      '<div class="report-score-label">' + label + '</div>' +
+      '<div class="report-score-label">' + label + (tipText ? ' <span class="tip-icon">?</span>' : '') + '</div>' +
       '<div class="report-score-bar"><div class="report-bar-fill" style="width:' + score + '%;background:' + scoreHex(score) + '"></div></div>' +
     '</div>'
   );
@@ -464,6 +587,13 @@ function switchTab(name) {
 
   document.getElementById("tab-" + name).classList.add("active");
   document.getElementById("panel-" + name).classList.add("active");
+
+  var dlBtn = document.getElementById("download-btn");
+  if (name === "compliance") {
+    dlBtn.classList.remove("hidden");
+  } else {
+    dlBtn.classList.add("hidden");
+  }
 }
 
 // disable buttons during fetching....
@@ -535,3 +665,134 @@ function scoreHex(score) {
   if (score >= 40) return "#f5a524";
   return "#f04060";
 }
+
+// generate and download compliance report as text file....
+function downloadReport() {
+  if (!currentData || !currentData.stages || !currentData.stages.compliance) {
+    alert("No compliance data to download.");
+    return;
+  }
+  var c = currentData.stages.compliance.data;
+  var target = currentData.target || "Unknown Target";
+  var now = new Date().toLocaleString();
+  var lines = [];
+
+  lines.push("BRON Compliance Report");
+  lines.push("Target: " + target);
+  lines.push("Generated: " + now);
+  lines.push("");
+  lines.push("--- SCORES ---");
+  var s = c.scores || {};
+  lines.push("Overall:          " + (s.overall || "N/A") + "%");
+  lines.push("NIST 800-53:      " + (s.nist_compliance || "N/A") + "%");
+  lines.push("CIS Controls:     " + (s.cis_compliance || "N/A") + "%");
+  lines.push("OWASP Top 10:     " + (s.owasp_compliance || "N/A") + "%");
+  lines.push("Security Headers: " + (s.security_headers || "N/A") + "%");
+  lines.push("");
+
+  lines.push("--- NIST SP 800-53 CONTROLS TRIGGERED ---");
+  var nist = c.nist_800_53 || [];
+  if (nist.length === 0) {
+    lines.push("  None");
+  } else {
+    for (var i = 0; i < nist.length; i++) {
+      lines.push("  [" + nist[i].control + "] " + nist[i].description);
+      lines.push("    Triggered by: " + nist[i].triggered_by.join(", "));
+    }
+  }
+  lines.push("");
+
+  lines.push("--- CIS CONTROLS TRIGGERED ---");
+  var cis = c.cis_controls || [];
+  if (cis.length === 0) {
+    lines.push("  None");
+  } else {
+    for (var j = 0; j < cis.length; j++) {
+      lines.push("  [" + cis[j].control + "] " + cis[j].description);
+      lines.push("    Triggered by: " + cis[j].triggered_by.join(", "));
+    }
+  }
+  lines.push("");
+
+  lines.push("--- OWASP TOP 10 TRIGGERED ---");
+  var owasp = c.owasp_top10 || [];
+  if (owasp.length === 0) {
+    lines.push("  None");
+  } else {
+    for (var k = 0; k < owasp.length; k++) {
+      lines.push("  [" + owasp[k].id + "] " + owasp[k].name);
+      lines.push("    Via CWEs: " + owasp[k].triggered_by_cwes.join(", "));
+    }
+  }
+  lines.push("");
+
+  lines.push("--- SECURITY HEADERS ---");
+  var hdrs = c.security_headers || [];
+  for (var h = 0; h < hdrs.length; h++) {
+    lines.push("  [" + hdrs[h].status + "] " + hdrs[h].header + (hdrs[h].value ? " = " + hdrs[h].value : ""));
+  }
+
+  var blob = new Blob([lines.join("\n")], { type: "text/plain" });
+  var url = URL.createObjectURL(blob);
+  var a = document.createElement("a");
+  a.href = url;
+  a.download = "bron_compliance_report.txt";
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+var TOOLTIPS = {
+  "NIST SP 800-53": "NIST SP 800-53 is a catalog of security controls published by the National Institute of Standards and Technology. It is the standard for US federal systems and widely used worldwide.",
+  "CIS Controls": "CIS Controls are a prioritized set of best practices from the Center for Internet Security. They help organizations defend against the most common cyber attacks.",
+  "OWASP Top 10": "The OWASP Top 10 is a list of the 10 most critical web application security risks published by the Open Web Application Security Project.",
+  "Security Headers": "Security Headers are HTTP response headers that instruct browsers on how to behave. Missing headers can expose users to attacks like XSS, clickjacking, and data injection.",
+  "Strict-Transport-Security": "Forces browsers to use HTTPS. Prevents downgrade attacks and cookie hijacking over HTTP.",
+  "Content-Security-Policy": "Defines which content sources are allowed on the page. Prevents cross-site scripting (XSS) and data injection attacks.",
+  "X-Content-Type-Options": "Stops browsers from guessing the MIME type of a file. Prevents MIME sniffing attacks that can allow scripts to run unexpectedly.",
+  "X-Frame-Options": "Controls whether the page can be embedded in an iframe. Prevents clickjacking attacks.",
+  "X-XSS-Protection": "Enables the browser's built-in XSS filter. Blocks pages when a reflected cross-site scripting attack is detected.",
+  "Referrer-Policy": "Controls how much referrer information is included with requests. Protects user privacy and prevents info leakage.",
+  "Permissions-Policy": "Restricts which browser features and APIs can be used on the page. Limits exposure from compromised third-party scripts.",
+  "A01:2021": "OWASP A01 — Broken Access Control: Users can act outside their intended permissions. Includes unauthorized access to accounts, files, or functions.",
+  "A02:2021": "OWASP A02 — Cryptographic Failures: Weak or missing encryption exposes sensitive data in transit or at rest.",
+  "A03:2021": "OWASP A03 — Injection: Untrusted data is sent to an interpreter as part of a command or query. Includes SQL injection, XSS, and command injection.",
+  "A04:2021": "OWASP A04 — Insecure Design: Missing or ineffective security controls at the architecture or design level.",
+  "A05:2021": "OWASP A05 — Security Misconfiguration: Improper setup of servers, frameworks, or cloud services.",
+  "A06:2021": "OWASP A06 — Vulnerable and Outdated Components: Using libraries or frameworks with known vulnerabilities.",
+  "A07:2021": "OWASP A07 — Identification and Authentication Failures: Weak login, session management, or credential exposure.",
+  "A08:2021": "OWASP A08 — Software and Data Integrity Failures: Untrusted data or plugins are used without verification.",
+  "A09:2021": "OWASP A09 — Security Logging and Monitoring Failures: Insufficient logging prevents detection and response to attacks.",
+  "A10:2021": "OWASP A10 — Server-Side Request Forgery: The server fetches a URL supplied by the user, allowing attackers to reach internal systems."
+};
+
+// show tooltip near hovered element....
+function showTooltip(event, text) {
+  var tip = document.getElementById("bron-tooltip");
+  tip.textContent = text;
+  tip.classList.remove("hidden");
+  positionTooltip(event);
+}
+
+// position tooltip near mouse cursor....
+function positionTooltip(event) {
+  var tip = document.getElementById("bron-tooltip");
+  var x = event.clientX + 14;
+  var y = event.clientY + 14;
+  if (x + 260 > window.innerWidth) {
+    x = event.clientX - 270;
+  }
+  tip.style.left = x + "px";
+  tip.style.top = y + "px";
+}
+
+// hide tooltip on mouse leave....
+function hideTooltip() {
+  document.getElementById("bron-tooltip").classList.add("hidden");
+}
+
+document.addEventListener("mousemove", function(e) {
+  var tip = document.getElementById("bron-tooltip");
+  if (tip && !tip.classList.contains("hidden")) {
+    positionTooltip(e);
+  }
+});
