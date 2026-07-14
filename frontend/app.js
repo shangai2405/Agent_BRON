@@ -375,7 +375,7 @@ function renderVulnPanel(vuln) {
   var errorHtml = "";
   if (vuln.errors && vuln.errors.length > 0) {
     errorHtml += '<div class="card error-border">';
-    errorHtml += '<div class="card-title text-danger"><span>⚠️</span> Lookup Errors</div>';
+    errorHtml += '<div class="card-title text-danger">Lookup Errors</div>';
     // loop errors to print lists....
     for (var e = 0; e < vuln.errors.length; e++) {
       errorHtml += '<div class="error-item">' + escapeHtml(vuln.errors[e]) + '</div>';
@@ -385,11 +385,11 @@ function renderVulnPanel(vuln) {
 
   container.innerHTML = 
     '<div class="card">' +
-      '<div class="card-title"><span>📊</span> Severity Summary</div>' +
+      '<div class="card-title">Severity Summary</div>' +
       severitySummaryHtml +
     '</div>' +
     '<div class="card">' +
-      '<div class="card-title"><span>⚠️</span> CVEs (' + cves.length + ' total, sorted by severity)</div>' +
+      '<div class="card-title">CVEs (' + cves.length + ' total, sorted by severity)</div>' +
       '<div class="cve-list">' + cvesHtml + '</div>' +
     '</div>' +
     errorHtml;
