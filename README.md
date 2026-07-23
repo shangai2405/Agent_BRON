@@ -35,3 +35,8 @@ This tool performs a passive scan on any target domain to look up:
 2. **Open your browser**:
    Go to: **[http://localhost:5050/](http://localhost:5050/)**
 3. Type in any domain (e.g., `example.com`) and click **Analyze**.
+
+
+USERNAME AND PASSWORD 
+
+user 	pass123
