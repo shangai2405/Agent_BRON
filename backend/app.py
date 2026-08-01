@@ -69,6 +69,19 @@ def analyze():
         print(f"Stage 3: BRON Mapping - {vuln['total_cves']} CVEs")
         bron = run_bron_mapping(vuln.get("cves", []))
         pipeline_result["stages"]["bron"] = {"status": "done", "data": bron}
+        
+        # Merge live BRON threat details back into Stage 2 CVEs dynamically
+        if bron.get("bron_online") and bron.get("chains"):
+            chain_map = {c["cve_id"]: c for c in bron.get("chains", [])}
+            for cve in vuln.get("cves", []):
+                chain = chain_map.get(cve["cve_id"])
+                if chain:
+                    if chain.get("cause"):
+                        cve["cause"] = chain["cause"]
+                    if chain.get("attacker_action"):
+                        cve["attacker_action"] = chain["attacker_action"]
+                    if chain.get("solution"):
+                        cve["solution"] = chain["solution"]
     except Exception as e:
         pipeline_result["stages"]["bron"] = {"status": "error", "error": str(e)}
         bron = {"chains": [], "unique_attack_techniques": [], "total_chains": 0}
