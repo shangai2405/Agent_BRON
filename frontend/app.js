@@ -120,6 +120,7 @@ async function startAnalysis() {
   showPipeline();
   hideResults();
   resetSteps();
+  closeSidebar();
   setStep("recon", "active", "Scanning...");
 
   try {
@@ -138,8 +139,8 @@ async function startAnalysis() {
 
     updateSteppers(data.stages);
     renderResults(data);
-    switchTab('vuln');
     showResults();
+    openSidebar();
 
   } catch (err) {
     setStep("recon", "error", "Failed");
@@ -291,12 +292,19 @@ function renderVulnPanel(vuln) {
   var container = document.getElementById("vuln-content");
   if (!vuln) {
     container.innerHTML = emptyState("No vulnerability data");
+    var countEl = document.getElementById("vuln-sidebar-count");
+    if (countEl) countEl.textContent = "0";
     return;
   }
 
   var cves = [];
   if (vuln.cves) {
     cves = vuln.cves;
+  }
+
+  var countEl = document.getElementById("vuln-sidebar-count");
+  if (countEl) {
+    countEl.textContent = cves.length;
   }
 
   var counts = { CRITICAL: 0, HIGH: 0, MEDIUM: 0, LOW: 0, UNKNOWN: 0 };
@@ -326,7 +334,7 @@ function renderVulnPanel(vuln) {
       '</div>' +
       '<div class="vuln-summary-card sev-MEDIUM">' +
         '<div class="count">' + counts.MEDIUM + '</div>' +
-        '<div class="label">Medium</div>' +
+        '<div class="label">Med</div>' +
       '</div>' +
       '<div class="vuln-summary-card sev-LOW">' +
         '<div class="count">' + counts.LOW + '</div>' +
@@ -356,15 +364,21 @@ function renderVulnPanel(vuln) {
       }
 
       cvesHtml += 
-        '<div class="cve-card sev-' + cve.severity + '">' +
+        '<div class="cve-card sev-' + cve.severity + '" onclick="toggleCveCard(this, event)">' +
           '<div class="cve-header">' +
             '<span class="cve-id"><a href="' + cve.nvd_url + '" target="_blank">' + cve.cve_id + '</a></span>' +
             '<span class="sev-badge sev-' + cve.severity + '">' + cve.severity + '</span>' +
             '<span class="cvss-score">CVSS ' + cve.cvss_score + '</span>' +
             '<span class="cve-tech-tag">' + escapeHtml(cve.tech) + '</span>' +
             techVersionHtml +
+            '<span class="cve-expand-indicator"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><polyline points="6 9 12 15 18 9"></polyline></svg></span>' +
           '</div>' +
           '<div class="cve-desc">' + escapeHtml(cve.description) + '</div>' +
+          '<div class="cve-enrichment">' +
+            '<div class="enrich-section"><strong>Root Cause:</strong> ' + escapeHtml(cve.cause || "N/A") + '</div>' +
+            '<div class="enrich-section"><strong>Attacker Action:</strong> ' + escapeHtml(cve.attacker_action || "N/A") + '</div>' +
+            '<div class="enrich-section"><strong>Recommended Solution:</strong> ' + escapeHtml(cve.solution || "N/A") + '</div>' +
+          '</div>' +
           cwesHtml +
         '</div>';
     }
@@ -388,10 +402,7 @@ function renderVulnPanel(vuln) {
       '<div class="card-title">Severity Summary</div>' +
       severitySummaryHtml +
     '</div>' +
-    '<div class="card">' +
-      '<div class="card-title">CVEs (' + cves.length + ' total, sorted by severity)</div>' +
-      '<div class="cve-list">' + cvesHtml + '</div>' +
-    '</div>' +
+    '<div class="cve-list" style="margin-top:16px;">' + cvesHtml + '</div>' +
     errorHtml;
 }
 
@@ -585,15 +596,10 @@ function switchTab(name) {
     panels[j].classList.remove("active");
   }
 
-  document.getElementById("tab-" + name).classList.add("active");
-  document.getElementById("panel-" + name).classList.add("active");
-
-  var dlBtn = document.getElementById("download-btn");
-  if (name === "compliance") {
-    dlBtn.classList.remove("hidden");
-  } else {
-    dlBtn.classList.add("hidden");
-  }
+  var tabEl = document.getElementById("tab-" + name);
+  if (tabEl) tabEl.classList.add("active");
+  var panelEl = document.getElementById("panel-" + name);
+  if (panelEl) panelEl.classList.add("active");
 }
 
 // disable buttons during fetching....
@@ -688,6 +694,31 @@ function downloadReport() {
   lines.push("CIS Controls:     " + (s.cis_compliance || "N/A") + "%");
   lines.push("OWASP Top 10:     " + (s.owasp_compliance || "N/A") + "%");
   lines.push("Security Headers: " + (s.security_headers || "N/A") + "%");
+  lines.push("");
+
+  lines.push("--- VULNERABILITIES DETECTED ---");
+  var vulnData = null;
+  if (currentData.stages.vulnerability && currentData.stages.vulnerability.data) {
+    vulnData = currentData.stages.vulnerability.data;
+  }
+  var cves = vulnData ? (vulnData.cves || []) : [];
+  if (cves.length === 0) {
+    lines.push("  None");
+  } else {
+    for (var v = 0; v < cves.length; v++) {
+      var cve = cves[v];
+      lines.push("  [" + cve.cve_id + "] " + cve.severity + " (CVSS " + cve.cvss_score + ")");
+      lines.push("    Technology:       " + cve.tech + (cve.tech_version ? " v" + cve.tech_version : ""));
+      lines.push("    Description:      " + cve.description);
+      lines.push("    Root Cause:       " + (cve.cause || "N/A"));
+      lines.push("    Attacker Action:  " + (cve.attacker_action || "N/A"));
+      lines.push("    Recommendation:   " + (cve.solution || "N/A"));
+      if (cve.cwes && cve.cwes.length > 0) {
+        lines.push("    Weaknesses:       " + cve.cwes.join(", "));
+      }
+      lines.push("");
+    }
+  }
   lines.push("");
 
   lines.push("--- NIST SP 800-53 CONTROLS TRIGGERED ---");
@@ -796,3 +827,32 @@ document.addEventListener("mousemove", function(e) {
     positionTooltip(e);
   }
 });
+
+// Sidebar & Collapsible Cards management helpers
+function toggleSidebar() {
+  var sidebar = document.getElementById("vuln-sidebar");
+  if (sidebar) {
+    sidebar.classList.toggle("open");
+  }
+}
+
+function openSidebar() {
+  var sidebar = document.getElementById("vuln-sidebar");
+  if (sidebar && !sidebar.classList.contains("open")) {
+    sidebar.classList.add("open");
+  }
+}
+
+function closeSidebar() {
+  var sidebar = document.getElementById("vuln-sidebar");
+  if (sidebar && sidebar.classList.contains("open")) {
+    sidebar.classList.remove("open");
+  }
+}
+
+function toggleCveCard(element, event) {
+  if (event && (event.target.tagName === 'A' || event.target.closest('a'))) {
+    return;
+  }
+  element.classList.toggle("expanded");
+}
