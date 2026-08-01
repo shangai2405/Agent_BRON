@@ -69,6 +69,19 @@
       </div>
     </header>
 
+    <!-- Sidebar Taskbar for Vulnerabilities -->
+    <aside id="vuln-sidebar" class="vuln-sidebar">
+      <button class="sidebar-toggle" onclick="toggleSidebar()" aria-label="Toggle vulnerabilities sidebar" id="sidebar-toggle-btn">
+        <svg id="sidebar-toggle-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
+          <polyline points="15 18 9 12 15 6"></polyline>
+        </svg>
+      </button>
+      <div class="sidebar-header">
+        <h2 class="sidebar-title">Vulnerabilities (<span id="vuln-sidebar-count">0</span>)</h2>
+      </div>
+      <div id="vuln-content" class="sidebar-content"></div>
+    </aside>
+
     <main class="main">
       <section class="hero">
         <p id="greeting-text" class="greeting-text"></p>
@@ -113,20 +126,16 @@
 
       <section id="results-section" class="results-section hidden">
         <div class="score-cards" id="score-cards"></div>
-        <div class="tabs-row">
-          <div class="tabs">
-            <button class="tab active" onclick="switchTab('vuln')" id="tab-vuln">Vulnerabilities</button>
-            <button class="tab" onclick="switchTab('compliance')" id="tab-compliance">Compliance</button>
-          </div>
-          <button class="download-btn hidden" id="download-btn" onclick="downloadReport()">
+        
+        <div class="section-header">
+          <h2 class="section-title">Compliance Mapping</h2>
+          <button class="download-btn" id="download-btn" onclick="downloadReport()">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="15" height="15"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
             Download Report
           </button>
         </div>
-        <div class="tab-content">
-          <div id="panel-vuln" class="panel active"><div id="vuln-content"></div></div>
-          <div id="panel-compliance" class="panel"><div id="compliance-content"></div></div>
-        </div>
+        
+        <div id="compliance-content"></div>
       </section>
 
       <div id="error-banner" class="error-banner hidden">
