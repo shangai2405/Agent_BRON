@@ -253,18 +253,23 @@ function renderScoreCards(compliance) {
       value: overallVal,
       suffix: overallVal !== "N/A" ? "%" : "",
       color: scoreColor(overallVal),
+      clickable: false,
     },
     {
-      label: "CVEs Found",
+      label: "Vulnerabilities Found",
       value: cveVal,
       suffix: "",
       color: cveVal > 10 ? "score-bad" : (cveVal > 3 ? "score-warn" : "score-good"),
+      subtext: "View Vulnerabilities Panel ➔",
+      clickable: true,
+      onClick: "openSidebar()",
     },
     {
       label: "Security Headers",
       value: headerVal,
       suffix: headerVal !== "N/A" ? "%" : "",
       color: scoreColor(headerVal),
+      clickable: false,
     },
   ];
 
@@ -272,9 +277,15 @@ function renderScoreCards(compliance) {
   for (var i = 0; i < cards.length; i++) {
     var card = cards[i];
     var el = document.createElement("div");
-    el.className = "score-card";
+    el.className = "score-card" + (card.clickable ? " clickable" : "");
+    if (card.clickable) {
+      el.setAttribute("onclick", card.onClick);
+      el.setAttribute("title", "Click to open vulnerabilities sidebar");
+    }
+    var subtextHtml = card.subtext ? '<div class="score-card-subtext">' + card.subtext + '</div>' : '';
     el.innerHTML = '<div class="score-value ' + card.color + '">' + card.value + card.suffix + '</div>' +
-                   '<div class="score-label">' + card.label + '</div>';
+                   '<div class="score-label">' + card.label + '</div>' +
+                   subtextHtml;
     container.appendChild(el);
   }
 }
@@ -322,25 +333,34 @@ function renderVulnPanel(vuln) {
     }
   }
 
-  var severitySummaryHtml = 
-    '<div class="vuln-summary-row">' +
-      '<div class="vuln-summary-card sev-CRITICAL">' +
-        '<div class="count">' + counts.CRITICAL + '</div>' +
-        '<div class="label">Critical</div>' +
-      '</div>' +
-      '<div class="vuln-summary-card sev-HIGH">' +
-        '<div class="count">' + counts.HIGH + '</div>' +
-        '<div class="label">High</div>' +
-      '</div>' +
-      '<div class="vuln-summary-card sev-MEDIUM">' +
-        '<div class="count">' + counts.MEDIUM + '</div>' +
-        '<div class="label">Med</div>' +
-      '</div>' +
-      '<div class="vuln-summary-card sev-LOW">' +
-        '<div class="count">' + counts.LOW + '</div>' +
-        '<div class="label">Low</div>' +
-      '</div>' +
-    '</div>';
+  // Update pinned severity summary in sticky sidebar header
+  var sidebarSevEl = document.getElementById("sidebar-severity-summary");
+  if (sidebarSevEl) {
+    sidebarSevEl.innerHTML = 
+      '<div class="sidebar-sev-pill sev-CRITICAL"><span class="count">' + counts.CRITICAL + '</span><span class="label">Crit</span></div>' +
+      '<div class="sidebar-sev-pill sev-HIGH"><span class="count">' + counts.HIGH + '</span><span class="label">High</span></div>' +
+      '<div class="sidebar-sev-pill sev-MEDIUM"><span class="count">' + counts.MEDIUM + '</span><span class="label">Med</span></div>' +
+      '<div class="sidebar-sev-pill sev-LOW"><span class="count">' + counts.LOW + '</span><span class="label">Low</span></div>';
+  }
+
+  // Update main page vulnerability summary banner
+  var mainBannerEl = document.getElementById("main-vuln-banner");
+  var mainBannerTitle = document.getElementById("main-vuln-title");
+  var mainBannerSub = document.getElementById("main-vuln-sub");
+  var mainBannerCount = document.getElementById("main-vuln-count-btn");
+
+  if (mainBannerEl) {
+    mainBannerEl.classList.remove("hidden");
+    if (mainBannerTitle) {
+      mainBannerTitle.textContent = cves.length + " Vulnerabilities Detected";
+    }
+    if (mainBannerSub) {
+      mainBannerSub.textContent = counts.CRITICAL + " Critical, " + counts.HIGH + " High, " + counts.MEDIUM + " Medium, " + counts.LOW + " Low vulnerabilities found across tech stack.";
+    }
+    if (mainBannerCount) {
+      mainBannerCount.textContent = cves.length;
+    }
+  }
 
   var cvesHtml = "";
   if (cves.length > 0) {
@@ -398,11 +418,7 @@ function renderVulnPanel(vuln) {
   }
 
   container.innerHTML = 
-    '<div class="card">' +
-      '<div class="card-title">Severity Summary</div>' +
-      severitySummaryHtml +
-    '</div>' +
-    '<div class="cve-list" style="margin-top:16px;">' + cvesHtml + '</div>' +
+    '<div class="cve-list">' + cvesHtml + '</div>' +
     errorHtml;
 }
 
@@ -625,6 +641,8 @@ function showPipeline() {
 // hide results panel block....
 function hideResults() {
   document.getElementById("results-section").classList.add("hidden");
+  var banner = document.getElementById("main-vuln-banner");
+  if (banner) banner.classList.add("hidden");
 }
 
 // show results panel block....
@@ -829,10 +847,22 @@ document.addEventListener("mousemove", function(e) {
 });
 
 // Sidebar & Collapsible Cards management helpers
+function updateOverlayState(isOpen) {
+  var overlay = document.getElementById("sidebar-overlay");
+  if (overlay) {
+    if (isOpen) {
+      overlay.classList.add("active");
+    } else {
+      overlay.classList.remove("active");
+    }
+  }
+}
+
 function toggleSidebar() {
   var sidebar = document.getElementById("vuln-sidebar");
   if (sidebar) {
-    sidebar.classList.toggle("open");
+    var isOpen = sidebar.classList.toggle("open");
+    updateOverlayState(isOpen);
   }
 }
 
@@ -840,6 +870,7 @@ function openSidebar() {
   var sidebar = document.getElementById("vuln-sidebar");
   if (sidebar && !sidebar.classList.contains("open")) {
     sidebar.classList.add("open");
+    updateOverlayState(true);
   }
 }
 
@@ -847,8 +878,17 @@ function closeSidebar() {
   var sidebar = document.getElementById("vuln-sidebar");
   if (sidebar && sidebar.classList.contains("open")) {
     sidebar.classList.remove("open");
+    updateOverlayState(false);
   }
 }
+
+// Close vulnerabilities sidebar when clicking anywhere outside of it
+document.addEventListener("click", function(e) {
+  var sidebar = document.getElementById("vuln-sidebar");
+  if (!sidebar || !sidebar.classList.contains("open")) return;
+  if (sidebar.contains(e.target)) return;
+  closeSidebar();
+});
 
 function toggleCveCard(element, event) {
   if (event && (event.target.tagName === 'A' || event.target.closest('a'))) {

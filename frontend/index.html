@@ -69,6 +69,9 @@
       </div>
     </header>
 
+    <!-- Sidebar Overlay -->
+    <div id="sidebar-overlay" class="sidebar-overlay" onclick="closeSidebar()"></div>
+
     <!-- Sidebar Taskbar for Vulnerabilities -->
     <aside id="vuln-sidebar" class="vuln-sidebar">
       <button class="sidebar-toggle" onclick="toggleSidebar()" aria-label="Toggle vulnerabilities sidebar" id="sidebar-toggle-btn">
@@ -77,7 +80,11 @@
         </svg>
       </button>
       <div class="sidebar-header">
-        <h2 class="sidebar-title">Vulnerabilities (<span id="vuln-sidebar-count">0</span>)</h2>
+        <div class="sidebar-header-top">
+          <h2 class="sidebar-title">Vulnerabilities (<span id="vuln-sidebar-count">0</span>)</h2>
+          <button class="sidebar-close-btn" onclick="closeSidebar()" aria-label="Close sidebar">&times;</button>
+        </div>
+        <div id="sidebar-severity-summary" class="sidebar-severity-summary"></div>
       </div>
       <div id="vuln-content" class="sidebar-content"></div>
     </aside>
@@ -107,7 +114,7 @@
             <div class="step-label">Recon</div><div class="step-status"></div>
           </div>
           <div class="step-connector"></div>
-          <div class="step" id="step-vuln">
+          <div class="step step-clickable" id="step-vuln" onclick="openSidebar()" title="Click to view Vulnerabilities panel">
             <div class="step-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 9v4M12 17h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/></svg></div>
             <div class="step-label">Vulnerability</div><div class="step-status"></div>
           </div>
@@ -126,6 +133,23 @@
 
       <section id="results-section" class="results-section hidden">
         <div class="score-cards" id="score-cards"></div>
+        
+        <!-- Main Page Vulnerabilities Summary Banner -->
+        <div id="main-vuln-banner" class="main-vuln-banner hidden" onclick="openSidebar()">
+          <div class="main-vuln-banner-left">
+            <div class="main-vuln-icon">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="22" height="22"><path d="M12 9v4M12 17h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/></svg>
+            </div>
+            <div class="main-vuln-info">
+              <div class="main-vuln-title" id="main-vuln-title">Vulnerabilities Detected</div>
+              <div class="main-vuln-sub" id="main-vuln-sub">Detected security vulnerabilities across tech stack. Click to view full details.</div>
+            </div>
+          </div>
+          <button class="main-vuln-btn" type="button" onclick="event.stopPropagation(); openSidebar();">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="15" height="15"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+            View Vulnerabilities Panel (<span id="main-vuln-count-btn">0</span>)
+          </button>
+        </div>
         
         <div class="section-header">
           <h2 class="section-title">Compliance Mapping</h2>
