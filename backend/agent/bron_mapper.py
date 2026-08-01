@@ -99,12 +99,26 @@ FOR cve IN cve
     LIMIT 1
     LET cwe_docs = (
         FOR cwe IN 1..1 INBOUND cve CweCve
-            RETURN {{id: cwe.original_id, name: cwe.name}}
+            LET mit_texts = (
+                FOR mit IN 1..1 OUTBOUND cwe CweCwe_mitigation
+                    RETURN DISTINCT mit.metadata.Description
+            )
+            RETURN {{
+                id: cwe.original_id, 
+                name: cwe.name,
+                description: cwe.metadata.description,
+                short_description: cwe.metadata.short_description,
+                mitigations: mit_texts
+            }}
     )
     LET capec_docs = (
         FOR cwe IN 1..1 INBOUND cve CweCve
             FOR capec IN 1..1 INBOUND cwe CapecCwe
-                RETURN DISTINCT {{id: capec.original_id, name: capec.name}}
+                RETURN DISTINCT {{
+                    id: capec.original_id, 
+                    name: capec.name,
+                    description: capec.metadata.description
+                }}
     )
     LET technique_docs = (
         FOR cwe IN 1..1 INBOUND cve CweCve
@@ -166,6 +180,9 @@ def build_chain_from_bron(cve: Dict, bron_data: Optional[Dict]) -> Dict:
         "capecs": [],
         "attack_techniques": [],
         "tactics": [],
+        "cause": None,
+        "attacker_action": None,
+        "solution": None
     }
 
     if bron_data:
@@ -199,6 +216,34 @@ def build_chain_from_bron(cve: Dict, bron_data: Optional[Dict]) -> Dict:
             {"id": d["id"], "name": d.get("name", d["id"])}
             for d in (bron_data.get("tactic") or [])
         ]
+
+        # Extract root causes from CWE descriptions
+        cwe_descs = []
+        for d in (bron_data.get("cwe") or []):
+            desc = d.get("description") or d.get("short_description")
+            if desc:
+                cwe_descs.append(desc.strip())
+        if cwe_descs:
+            chain["cause"] = " | ".join(cwe_descs)
+
+        # Extract attacker actions from CAPEC descriptions
+        capec_descs = []
+        for d in (bron_data.get("capec") or []):
+            desc = d.get("description")
+            if desc:
+                capec_id_label = f"CAPEC-{d['id']}" if not str(d['id']).startswith("CAPEC-") else d['id']
+                capec_descs.append(f"[{capec_id_label}] {desc.strip()}")
+        if capec_descs:
+            chain["attacker_action"] = " ".join(capec_descs[:2])
+
+        # Extract solutions from CWE mitigations
+        mit_texts = []
+        for d in (bron_data.get("cwe") or []):
+            for mit in (d.get("mitigations") or []):
+                if mit and mit.strip():
+                    mit_texts.append(mit.strip())
+        if mit_texts:
+            chain["solution"] = " ".join(mit_texts[:2])
 
     return chain
 
