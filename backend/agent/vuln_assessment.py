@@ -1,5 +1,12 @@
+import os
 import time
 import requests
+from dotenv import load_dotenv
+
+from .msf_client import MSFClient
+from .msf_mapper import MSFMapper
+
+load_dotenv()
 
 NVD_API = "https://services.nvd.nist.gov/rest/json/cves/2.0"
 SEV_COLORS = {"CRITICAL":"#ff4444","HIGH":"#ff8800","MEDIUM":"#ffcc00","LOW":"#44cc44","NONE":"#888888","UNKNOWN":"#888888"}
@@ -95,11 +102,11 @@ def enrich_cve_details(cve):
     cwes = cve.get("cwes", [])
     severity = cve.get("severity", "UNKNOWN").upper()
     tech = cve.get("tech", "the software component")
-    
+
     cause = None
     attacker_action = None
     solution = None
-    
+
     # Try matching by primary CWE
     for cwe_id in cwes:
         if cwe_id in CWE_ENRICHMENTS:
@@ -107,7 +114,7 @@ def enrich_cve_details(cve):
             attacker_action = CWE_ENRICHMENTS[cwe_id]["attacker_action"]
             solution = CWE_ENRICHMENTS[cwe_id]["solution"]
             break
-            
+
     # If not matched, try searching text for keywords
     if not cause:
         desc_lower = cve.get("description", "").lower()
@@ -128,13 +135,13 @@ def enrich_cve_details(cve):
             elif cwe_id == "CWE-601": name_keyword = "open redirect"
             elif cwe_id == "CWE-434": name_keyword = "file upload"
             elif cwe_id == "CWE-502": name_keyword = "deserialization"
-            
+
             if name_keyword and name_keyword in desc_lower:
                 cause = enrich["cause"]
                 attacker_action = enrich["attacker_action"]
                 solution = enrich["solution"]
                 break
-                
+
     # Fallback to general severity-based templates
     if not cause:
         if severity == "CRITICAL":
@@ -200,18 +207,35 @@ def fetch_cves(tech, max_results=5):
 # run check on all found techs....
 def run_vuln_assessment(detected_technologies):
     all_cves, errors, tech_summary = [], [], {}
+
+    # --- Metasploit integration ---
+    # Set up the RPC client + mapper ONCE, outside the loop, so we don't
+    # reopen an msfrpcd connection for every technology scanned.
+    # Requires MSF_RPC_PASS in your .env (see msf_client.py / docker-compose msfrpc service).
+    msf_client = MSFClient(password=os.environ["MSF_RPC_PASS"])
+    mapper = MSFMapper(msf_client)
+
     # loop all detected technologies to query cves....
     for i, tech in enumerate(detected_technologies):
         if i > 0: time.sleep(6)
         cves = fetch_cves(tech, max_results=5)
         valid = [c for c in cves if "error" not in c]
         err   = [c for c in cves if "error" in c]
+
+        # --- Metasploit integration ---
+        # For each valid CVE found for this tech, check whether Metasploit
+        # has a matching exploit module. Adds 'msf_modules' (list of module
+        # names) and 'exploit_available' (bool) to each cve_record.
+        valid = mapper.enrich_vulnerabilities(valid)
+
         all_cves.extend(valid)
         if err: errors.append(f"{tech['name']}: {err[0]['error']}")
         tech_summary[tech["name"]] = {
             "cve_count": len(valid),
             "max_severity": max((c["severity"] for c in valid), default="NONE"),
-            "max_cvss": max((c["cvss_score"] for c in valid), default=0.0)
+            "max_cvss": max((c["cvss_score"] for c in valid), default=0.0),
+            # convenient rollup for the report/compliance stage
+            "exploitable_cve_count": sum(1 for c in valid if c.get("exploit_available"))
         }
     all_cves.sort(key=lambda x: x["cvss_score"], reverse=True)
     return {"total_cves": len(all_cves), "cves": all_cves, "tech_summary": tech_summary, "errors": errors}

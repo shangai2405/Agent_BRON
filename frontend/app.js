@@ -219,7 +219,50 @@ function renderResults(data) {
 
   renderScoreCards(complianceData);
   renderVulnPanel(vulnData);
+  renderTechSummary(vulnData, stages.recon ? stages.recon.data : null);
   renderCompliancePanel(complianceData);
+}
+
+// Draw technology inventory cards with exploitability stats
+function renderTechSummary(vuln, recon) {
+  var container = document.getElementById("tech-stack-summary");
+  if (!container) return;
+  container.innerHTML = "";
+
+  var detectedTechs = recon ? (recon.detected_technologies || []) : [];
+  var techSummary = vuln ? (vuln.tech_summary || {}) : {};
+
+  if (detectedTechs.length === 0) {
+    container.innerHTML = "<div class='empty-state' style='grid-column: 1/-1;'><p>No technologies detected during reconnaissance stage.</p></div>";
+    return;
+  }
+
+  for (var i = 0; i < detectedTechs.length; i++) {
+    var tech = detectedTechs[i];
+    var summary = techSummary[tech.name] || { cve_count: 0, max_severity: "NONE", max_cvss: 0.0, exploitable_cve_count: 0 };
+    
+    var severityColorClass = "score-good";
+    if (summary.max_severity === "CRITICAL") severityColorClass = "score-bad";
+    else if (summary.max_severity === "HIGH" || summary.max_severity === "MEDIUM") severityColorClass = "score-warn";
+
+    var exploitTextHtml = "";
+    if (summary.exploitable_cve_count > 0) {
+      exploitTextHtml = '<div class="tech-exploitable-stat">💥 ' + summary.exploitable_cve_count + ' Exploitable CVEs</div>';
+    }
+
+    var cardEl = document.createElement("div");
+    cardEl.className = "tech-card";
+    cardEl.innerHTML = 
+      '<div class="tech-card-header">' +
+        '<span class="tech-card-title">' + escapeHtml(tech.name) + '</span>' +
+        '<span class="tech-card-version">' + escapeHtml(tech.version || "unknown version") + '</span>' +
+      '</div>' +
+      '<div class="tech-card-metric">CVE Count: <span>' + summary.cve_count + '</span></div>' +
+      '<div class="tech-card-metric">Max Severity: <span class="' + severityColorClass + '">' + summary.max_severity + ' (' + summary.max_cvss + ')</span></div>' +
+      exploitTextHtml;
+
+    container.appendChild(cardEl);
+  }
 }
 
 // draw score card numbers for overview....
@@ -260,7 +303,14 @@ function renderScoreCards(compliance) {
       value: cveVal,
       suffix: "",
       color: cveVal > 10 ? "score-bad" : (cveVal > 3 ? "score-warn" : "score-good"),
-      subtext: "View Vulnerabilities Panel ➔",
+      subtext: (function() {
+        var cvesList = vulnData ? (vulnData.cves || []) : [];
+        var explCount = cvesList.filter(function(c) { return c.exploit_available; }).length;
+        if (explCount > 0) {
+          return "💥 " + explCount + " EXPLOITABLE • View Panel ➔";
+        }
+        return "View Vulnerabilities Panel ➔";
+      })(),
       clickable: true,
       onClick: "openSidebar()",
     },
@@ -355,28 +405,64 @@ function renderVulnPanel(vuln) {
       mainBannerTitle.textContent = cves.length + " Vulnerabilities Detected";
     }
     if (mainBannerSub) {
-      mainBannerSub.textContent = counts.CRITICAL + " Critical, " + counts.HIGH + " High, " + counts.MEDIUM + " Medium, " + counts.LOW + " Low vulnerabilities found across tech stack.";
+      var exploitableCount = cves.filter(function(c) { return c.exploit_available; }).length;
+      var exploitMsg = exploitableCount > 0 ? " (" + exploitableCount + " with KNOWN EXPLOITS)" : "";
+      mainBannerSub.textContent = counts.CRITICAL + " Critical, " + counts.HIGH + " High, " + counts.MEDIUM + " Medium, " + counts.LOW + " Low vulnerabilities found across tech stack" + exploitMsg + ". Click to view full details.";
     }
     if (mainBannerCount) {
       mainBannerCount.textContent = cves.length;
     }
   }
 
+  // Reset filter checkbox state when new results are loaded
+  var chk = document.getElementById("filter-exploitable-chk");
+  if (chk) chk.checked = false;
+
+  // Render initial CVE list (apply default sorting by CVSS)
+  applyCveFilters();
+}
+
+// Sub-function to build and insert the CVE card list markup
+function renderCveListMarkup(cvesList, errorsList) {
+  var container = document.getElementById("vuln-content");
+  if (!container) return;
+
   var cvesHtml = "";
-  if (cves.length > 0) {
-    // loop cves array to build list html items....
-    for (var j = 0; j < cves.length; j++) {
-      var cve = cves[j];
+  if (cvesList.length > 0) {
+    for (var j = 0; j < cvesList.length; j++) {
+      var cve = cvesList[j];
       
       var techVersionHtml = "";
       if (cve.tech_version) {
         techVersionHtml = '<span class="cve-tech-tag">v' + cve.tech_version + '</span>';
       }
 
+      // Metasploit Exploit Availability Badge
+      var exploitBadgeHtml = "";
+      var exploitDetailHtml = "";
+      if (cve.exploit_available === true && cve.msf_modules && cve.msf_modules.length > 0) {
+        var modulesCount = cve.msf_modules.length;
+        var listItems = "";
+        for (var m = 0; m < cve.msf_modules.length; m++) {
+          listItems += "<li>" + escapeHtml(cve.msf_modules[m]) + "</li>";
+        }
+
+        var tooltipText = "Known Exploit Available in Metasploit (Click card to view details)";
+        exploitBadgeHtml = '<span class="sev-badge badge-exploitable" title="' + tooltipText + '">💥 KNOWN EXPLOIT</span>';
+        
+        exploitDetailHtml = 
+          '<div class="cve-exploit-modules">' +
+            '<div class="cve-exploit-modules-title">' +
+              '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="12" height="12"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg>' +
+              'Metasploit modules available (' + modulesCount + '):' +
+            '</div>' +
+            '<ul class="cve-exploit-modules-list">' + listItems + '</ul>' +
+          '</div>';
+      }
+
       var cwesHtml = "";
       if (cve.cwes && cve.cwes.length > 0) {
         cwesHtml += '<div class="cwe-tags">';
-        // loop cwe strings of cve to add badges....
         for (var k = 0; k < cve.cwes.length; k++) {
           cwesHtml += '<span class="cwe-tag">' + cve.cwes[k] + '</span>';
         }
@@ -387,6 +473,7 @@ function renderVulnPanel(vuln) {
         '<div class="cve-card sev-' + cve.severity + '" onclick="toggleCveCard(this, event)">' +
           '<div class="cve-header">' +
             '<span class="cve-id"><a href="' + cve.nvd_url + '" target="_blank">' + cve.cve_id + '</a></span>' +
+            exploitBadgeHtml +
             '<span class="sev-badge sev-' + cve.severity + '">' + cve.severity + '</span>' +
             '<span class="cvss-score">CVSS ' + cve.cvss_score + '</span>' +
             '<span class="cve-tech-tag">' + escapeHtml(cve.tech) + '</span>' +
@@ -398,21 +485,21 @@ function renderVulnPanel(vuln) {
             '<div class="enrich-section"><strong>Root Cause:</strong> ' + escapeHtml(cve.cause || "N/A") + '</div>' +
             '<div class="enrich-section"><strong>Attacker Action:</strong> ' + escapeHtml(cve.attacker_action || "N/A") + '</div>' +
             '<div class="enrich-section"><strong>Recommended Solution:</strong> ' + escapeHtml(cve.solution || "N/A") + '</div>' +
+            exploitDetailHtml +
           '</div>' +
           cwesHtml +
         '</div>';
     }
   } else {
-    cvesHtml = "<div class='empty-state'><p>No CVEs found for detected technologies.</p></div>";
+    cvesHtml = "<div class='empty-state'><p>No vulnerabilities match the current filter.</p></div>";
   }
 
   var errorHtml = "";
-  if (vuln.errors && vuln.errors.length > 0) {
+  if (errorsList.length > 0) {
     errorHtml += '<div class="card error-border">';
     errorHtml += '<div class="card-title text-danger">Lookup Errors</div>';
-    // loop errors to print lists....
-    for (var e = 0; e < vuln.errors.length; e++) {
-      errorHtml += '<div class="error-item">' + escapeHtml(vuln.errors[e]) + '</div>';
+    for (var e = 0; e < errorsList.length; e++) {
+      errorHtml += '<div class="error-item">' + escapeHtml(errorsList[e]) + '</div>';
     }
     errorHtml += '</div>';
   }
@@ -895,4 +982,36 @@ function toggleCveCard(element, event) {
     return;
   }
   element.classList.toggle("expanded");
+}
+
+// Applies filter and sorting to the CVEs dynamically
+function applyCveFilters() {
+  if (!currentData || !currentData.stages || !currentData.stages.vulnerability || !currentData.stages.vulnerability.data) {
+    return;
+  }
+  
+  var vuln = currentData.stages.vulnerability.data;
+  var cves = vuln.cves || [];
+  
+  // 1. Filter
+  var filterExploitable = document.getElementById("filter-exploitable-chk").checked;
+  var filteredCves = cves.filter(function(cve) {
+    if (filterExploitable) {
+      return cve.exploit_available === true;
+    }
+    return true;
+  });
+
+  // 2. Sort: Exploitable first, then by CVSS score descending
+  filteredCves.sort(function(a, b) {
+    var aExploit = a.exploit_available ? 1 : 0;
+    var bExploit = b.exploit_available ? 1 : 0;
+    if (aExploit !== bExploit) {
+      return bExploit - aExploit; // 1 (true) comes before 0 (false)
+    }
+    return (b.cvss_score || 0) - (a.cvss_score || 0);
+  });
+
+  // 3. Render updated list
+  renderCveListMarkup(filteredCves, vuln.errors || []);
 }

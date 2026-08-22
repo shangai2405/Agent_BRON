@@ -85,6 +85,12 @@
           <button class="sidebar-close-btn" onclick="closeSidebar()" aria-label="Close sidebar">&times;</button>
         </div>
         <div id="sidebar-severity-summary" class="sidebar-severity-summary"></div>
+        <div class="sidebar-filter-row">
+          <label class="filter-switch">
+            <input type="checkbox" id="filter-exploitable-chk" onchange="applyCveFilters()" />
+            <span class="filter-switch-label">Exploitable Only</span>
+          </label>
+        </div>
       </div>
       <div id="vuln-content" class="sidebar-content"></div>
     </aside>
@@ -151,6 +157,12 @@
           </button>
         </div>
         
+        <!-- Technology Stack Summary Cards -->
+        <div class="section-header">
+          <h2 class="section-title">Technology Inventory & Exploitability</h2>
+        </div>
+        <div id="tech-stack-summary" class="tech-stack-summary-grid"></div>
+
         <div class="section-header">
           <h2 class="section-title">Compliance Mapping</h2>
           <button class="download-btn" id="download-btn" onclick="downloadReport()">
