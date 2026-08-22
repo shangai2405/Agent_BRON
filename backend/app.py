@@ -3,6 +3,8 @@ from datetime import datetime
 import os
 from flask import Flask, request, jsonify, send_from_directory
 from flask_cors import CORS
+from dotenv import load_dotenv
+load_dotenv()
 
 from agent.recon import run_recon
 from agent.vuln_assessment import run_vuln_assessment

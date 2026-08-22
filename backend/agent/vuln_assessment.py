@@ -1,5 +1,12 @@
+import os
 import time
 import requests
+from dotenv import load_dotenv
+
+from .msf_client import MSFClient
+from .msf_mapper import MSFMapper
+
+load_dotenv()
 
 NVD_API = "https://services.nvd.nist.gov/rest/json/cves/2.0"
 SEV_COLORS = {"CRITICAL":"#ff4444","HIGH":"#ff8800","MEDIUM":"#ffcc00","LOW":"#44cc44","NONE":"#888888","UNKNOWN":"#888888"}
@@ -16,6 +23,66 @@ def cvss_to_sev(score):
 def enrich_cve_details(cve):
     severity = cve.get("severity", "UNKNOWN").upper()
     tech = cve.get("tech", "the software component")
+<<<<<<< HEAD
+
+    cause = None
+    attacker_action = None
+    solution = None
+
+    # Try matching by primary CWE
+    for cwe_id in cwes:
+        if cwe_id in CWE_ENRICHMENTS:
+            cause = CWE_ENRICHMENTS[cwe_id]["cause"]
+            attacker_action = CWE_ENRICHMENTS[cwe_id]["attacker_action"]
+            solution = CWE_ENRICHMENTS[cwe_id]["solution"]
+            break
+
+    # If not matched, try searching text for keywords
+    if not cause:
+        desc_lower = cve.get("description", "").lower()
+        for cwe_id, enrich in CWE_ENRICHMENTS.items():
+            name_keyword = ""
+            if cwe_id == "CWE-79": name_keyword = "cross-site scripting"
+            elif cwe_id == "CWE-89": name_keyword = "sql injection"
+            elif cwe_id == "CWE-22": name_keyword = "directory traversal"
+            elif cwe_id == "CWE-20": name_keyword = "input validation"
+            elif cwe_id == "CWE-200": name_keyword = "information disclosure"
+            elif cwe_id == "CWE-287": name_keyword = "authentication bypass"
+            elif cwe_id == "CWE-352": name_keyword = "csrf"
+            elif cwe_id == "CWE-416": name_keyword = "use-after-free"
+            elif cwe_id == "CWE-125": name_keyword = "out-of-bounds read"
+            elif cwe_id == "CWE-476": name_keyword = "null pointer"
+            elif cwe_id == "CWE-119": name_keyword = "buffer overflow"
+            elif cwe_id == "CWE-190": name_keyword = "integer overflow"
+            elif cwe_id == "CWE-601": name_keyword = "open redirect"
+            elif cwe_id == "CWE-434": name_keyword = "file upload"
+            elif cwe_id == "CWE-502": name_keyword = "deserialization"
+
+            if name_keyword and name_keyword in desc_lower:
+                cause = enrich["cause"]
+                attacker_action = enrich["attacker_action"]
+                solution = enrich["solution"]
+                break
+
+    # Fallback to general severity-based templates
+    if not cause:
+        if severity == "CRITICAL":
+            cause = f"A critical software vulnerability exists in the {tech} software module, exposing core functions."
+            attacker_action = f"Attackers can exploit this flaw to execute arbitrary system commands, bypass security access screens, or extract entire datasets."
+            solution = f"Immediately upgrade {tech} to the latest version. Implement network containment rules to shield high-risk APIs, and configure a Web Application Firewall."
+        elif severity == "HIGH":
+            cause = f"A high-severity input parsing or access verification flaw is present within the {tech} software package."
+            attacker_action = f"Attackers can leverage this bypass to access private resources, write malicious settings, or trigger memory exhaustion crashes."
+            solution = f"Update the {tech} deployment to a secure version. Audit authentication pathways and validate boundary constraints on input parameters."
+        elif severity == "MEDIUM":
+            cause = f"A medium-risk logical flaw or resource management issue exists in the {tech} stack."
+            attacker_action = f"Attackers could exploit this to trigger Denial of Service conditions, extract system configuration info, or conduct cross-site spoofing."
+            solution = f"Configure access control lists to prevent public discovery of {tech} services. Install the latest component updates."
+        else:
+            cause = f"A low-risk security anomaly or informative exposure exists in {tech}."
+            attacker_action = f"Attackers might acquire system diagnostic signatures or trigger local errors without direct control."
+            solution = f"Apply routine patches to {tech} and configure headers/footers to avoid displaying version banners."
+=======
     
     if severity == "CRITICAL":
         cause = f"A critical software vulnerability exists in the {tech} software module, exposing core functions."
@@ -33,6 +100,7 @@ def enrich_cve_details(cve):
         cause = f"A low-risk security anomaly or informative exposure exists in {tech}."
         attacker_action = f"Attackers might acquire system diagnostic signatures or trigger local errors without direct control."
         solution = f"Apply routine patches to {tech} and configure headers/footers to avoid displaying version banners."
+>>>>>>> 363a159c7f6f4855a11636abf737cea356f38ccc
 
     cve["cause"] = cause
     cve["attacker_action"] = attacker_action
@@ -80,18 +148,35 @@ def fetch_cves(tech, max_results=5):
 # run check on all found techs....
 def run_vuln_assessment(detected_technologies):
     all_cves, errors, tech_summary = [], [], {}
+
+    # --- Metasploit integration ---
+    # Set up the RPC client + mapper ONCE, outside the loop, so we don't
+    # reopen an msfrpcd connection for every technology scanned.
+    # Requires MSF_RPC_PASS in your .env (see msf_client.py / docker-compose msfrpc service).
+    msf_client = MSFClient(password=os.environ["MSF_RPC_PASS"])
+    mapper = MSFMapper(msf_client)
+
     # loop all detected technologies to query cves....
     for i, tech in enumerate(detected_technologies):
         if i > 0: time.sleep(6)
         cves = fetch_cves(tech, max_results=5)
         valid = [c for c in cves if "error" not in c]
         err   = [c for c in cves if "error" in c]
+
+        # --- Metasploit integration ---
+        # For each valid CVE found for this tech, check whether Metasploit
+        # has a matching exploit module. Adds 'msf_modules' (list of module
+        # names) and 'exploit_available' (bool) to each cve_record.
+        valid = mapper.enrich_vulnerabilities(valid)
+
         all_cves.extend(valid)
         if err: errors.append(f"{tech['name']}: {err[0]['error']}")
         tech_summary[tech["name"]] = {
             "cve_count": len(valid),
             "max_severity": max((c["severity"] for c in valid), default="NONE"),
-            "max_cvss": max((c["cvss_score"] for c in valid), default=0.0)
+            "max_cvss": max((c["cvss_score"] for c in valid), default=0.0),
+            # convenient rollup for the report/compliance stage
+            "exploitable_cve_count": sum(1 for c in valid if c.get("exploit_available"))
         }
     all_cves.sort(key=lambda x: x["cvss_score"], reverse=True)
     return {"total_cves": len(all_cves), "cves": all_cves, "tech_summary": tech_summary, "errors": errors}
