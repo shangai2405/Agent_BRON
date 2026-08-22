@@ -20,10 +20,88 @@ def cvss_to_sev(score):
     return "NONE"
 
 
+CWE_ENRICHMENTS = {
+    "CWE-79": {
+        "cause": "Improper neutralization of user-controllable input before it is placed in output web pages (reflected, stored, or DOM-based XSS).",
+        "attacker_action": "Inject malicious scripts into web pages viewed by other users, which can hijack sessions, steal cookies, or deface/redirect pages.",
+        "solution": "Implement strict context-aware output encoding (HTML, JavaScript, CSS context), employ Content Security Policy (CSP), and sanitize inputs."
+    },
+    "CWE-89": {
+        "cause": "Improper neutralization of special elements in SQL commands constructed from user inputs.",
+        "attacker_action": "Execute arbitrary SQL queries on the backend database, allowing unauthorized reading, updating, or deleting of sensitive records.",
+        "solution": "Use parameterized queries or prepared statements, avoid dynamic query string construction, and use safe Object Relational Mappers (ORMs)."
+    },
+    "CWE-22": {
+        "cause": "Improper validation of file paths in user input, allowing relative or absolute paths containing special characters (like '../').",
+        "attacker_action": "Access or read sensitive system files (configurations, credentials, source code) stored outside the web document root.",
+        "solution": "Avoid direct user input in file paths. Resolve and validate absolute paths against a whitelist of permitted directories, or use indexes."
+    },
+    "CWE-20": {
+        "cause": "The application does not validate or incorrectly validates input that can affect control flow, data flow, or system resources.",
+        "attacker_action": "Supply malformed inputs to cause application crashes (denial of service), bypass authentication protocols, or trigger other logical exploits.",
+        "solution": "Implement robust input validation checking length, format, boundaries, and type on all entry points using strict allowlists."
+    },
+    "CWE-200": {
+        "cause": "The application unintentionally exposes sensitive system details, configuration keys, user data, or stack traces to unauthorized parties.",
+        "attacker_action": "Leverage exposed information to gain deep knowledge of internal systems and architecture, facilitating further system compromise.",
+        "solution": "Disable verbose error pages in production, sanitize system outputs/logs, and implement strict least-privilege access controls on APIs."
+    },
+    "CWE-287": {
+        "cause": "Failure to properly verify the identity of a user when credentials or sessions are established.",
+        "attacker_action": "Bypass authentication screens, conduct credential stuffing or brute force attacks, forge session tokens, and access victim profiles.",
+        "solution": "Adopt secure authentication libraries, enforce strong password complexity policies, require Multi-Factor Authentication (MFA), and secure session IDs."
+    },
+    "CWE-352": {
+        "cause": "The application does not verify whether a state-changing request originated from a trusted source or page.",
+        "attacker_action": "Force authenticated users into performing unintended actions (such as email changes or transactions) via malicious links or cross-site payloads.",
+        "solution": "Generate and validate cryptographic anti-CSRF tokens for all state-changing endpoints, and set Cookie SameSite attributes to Strict/Lax."
+    },
+    "CWE-416": {
+        "cause": "Referencing memory using a pointer after the pointer has been freed, causing memory corruption or unexpected execution behavior.",
+        "attacker_action": "Execute arbitrary code in system space or trigger memory access violations to crash applications (Denial of Service).",
+        "solution": "Assign freed pointers to NULL, utilize modern memory-safe programming languages or smart pointers, and perform strict unit testing on allocations."
+    },
+    "CWE-125": {
+        "cause": "Attempting to read data outside the memory boundaries of the designated buffer.",
+        "attacker_action": "Read confidential program memory or cause process termination (Denial of Service) via read access violations.",
+        "solution": "Validate that all array/pointer offsets are within strict index limits, use safe standard libraries, and compile with address sanitizers."
+    },
+    "CWE-476": {
+        "cause": "Dereferencing a pointer that is expected to point to valid memory but is actually NULL.",
+        "attacker_action": "Cause the host application to crash, resulting in a Denial of Service (DoS) for all active sessions.",
+        "solution": "Always verify that objects or pointers are not null before execution, and use language safety operators to gracefully handle empty values."
+    },
+    "CWE-119": {
+        "cause": "Improper restriction of memory operations within the bounds of a buffer, leading to read/write overflows.",
+        "attacker_action": "Overwrite return addresses in application stack memory, hijacking instruction execution pointers to run remote malicious payloads.",
+        "solution": "Replace unsafe functions (like strcpy, gets) with bounds-checked alternatives (strncpy), and enable modern compiler stack protection."
+    },
+    "CWE-190": {
+        "cause": "An arithmetic operation results in an integer value that is too large or too small to be represented in the allocated variable type.",
+        "attacker_action": "Wrap numerical values to bypass access validations, trigger undersized memory allocations, or cause subsequent buffer overflows.",
+        "solution": "Incorporate bounds checking prior to math operations, select sufficiently large variable types, or use safe integer math modules."
+    },
+    "CWE-601": {
+        "cause": "Client redirection targets are dynamically taken from user-supplied parameters without domain verification.",
+        "attacker_action": "Redirect users to phishing sites that mimic authentic login panels, leveraging the authority of the original trusted domain.",
+        "solution": "Avoid user-defined redirect targets. If dynamic redirects are required, strictly check targets against an allowed whitelist of local relative URLs."
+    },
+    "CWE-434": {
+        "cause": "Allowing file uploads to paths accessible to the web server without verifying file extensions or file content types.",
+        "attacker_action": "Upload executable scripts (like PHP, JSP, ASP) and trigger them via direct HTTP access, achieving remote code execution.",
+        "solution": "Validate extensions against strict allowlists, rename uploaded documents, store files outside the web root, and restrict upload folder execution."
+    },
+    "CWE-502": {
+        "cause": "Deserializing serialized data objects received from untrusted environments without checking the object types or structure.",
+        "attacker_action": "Inject manipulated serialized objects containing system commands, achieving remote command execution when the application processes them.",
+        "solution": "Avoid deserializing untrusted objects; use standard message formats (like JSON) and employ HMAC signatures to verify message integrity."
+    }
+}
+
 def enrich_cve_details(cve):
+    cwes = cve.get("cwes", [])
     severity = cve.get("severity", "UNKNOWN").upper()
     tech = cve.get("tech", "the software component")
-<<<<<<< HEAD
 
     cause = None
     attacker_action = None
@@ -82,25 +160,6 @@ def enrich_cve_details(cve):
             cause = f"A low-risk security anomaly or informative exposure exists in {tech}."
             attacker_action = f"Attackers might acquire system diagnostic signatures or trigger local errors without direct control."
             solution = f"Apply routine patches to {tech} and configure headers/footers to avoid displaying version banners."
-=======
-    
-    if severity == "CRITICAL":
-        cause = f"A critical software vulnerability exists in the {tech} software module, exposing core functions."
-        attacker_action = f"Attackers can exploit this flaw to execute arbitrary system commands, bypass security access screens, or extract entire datasets."
-        solution = f"Immediately upgrade {tech} to the latest version. Implement network containment rules to shield high-risk APIs, and configure a Web Application Firewall."
-    elif severity == "HIGH":
-        cause = f"A high-severity input parsing or access verification flaw is present within the {tech} software package."
-        attacker_action = f"Attackers can leverage this bypass to access private resources, write malicious settings, or trigger memory exhaustion crashes."
-        solution = f"Update the {tech} deployment to a secure version. Audit authentication pathways and validate boundary constraints on input parameters."
-    elif severity == "MEDIUM":
-        cause = f"A medium-risk logical flaw or resource management issue exists in the {tech} stack."
-        attacker_action = f"Attackers could exploit this to trigger Denial of Service conditions, extract system configuration info, or conduct cross-site spoofing."
-        solution = f"Configure access control lists to prevent public discovery of {tech} services. Install the latest component updates."
-    else:
-        cause = f"A low-risk security anomaly or informative exposure exists in {tech}."
-        attacker_action = f"Attackers might acquire system diagnostic signatures or trigger local errors without direct control."
-        solution = f"Apply routine patches to {tech} and configure headers/footers to avoid displaying version banners."
->>>>>>> 363a159c7f6f4855a11636abf737cea356f38ccc
 
     cve["cause"] = cause
     cve["attacker_action"] = attacker_action
