@@ -1,0 +1,22 @@
+{
+    "$schema":"http://json-schema.org/draft-07/schema#",
+    "title":"CweCwe_mitigation",
+    "description":"A link between a weakness and a weakness mitigation",
+    "type":"object",
+    "properties":{
+      "_from":{
+         "description":"The weakness identifier in BRON.",
+         "type":"string",
+         "pattern": "cwe/CWE-\\d{1,4}"
+      },
+      "_to":{
+         "description":"The weakness mitigation identifier in BRON.",
+         "type":"string",
+         "pattern": "cwe_mitigation/CWE-\\d{1,4}"
+      }
+ },
+    "required":[
+      "_from",
+      "_to"
+      ]
+  }

@@ -1,0 +1,22 @@
+{
+    "$schema":"http://json-schema.org/draft-07/schema#",
+    "title":"TechniqueCapec",
+    "description":"A link between a technique and an attack pattern",
+    "type":"object",
+    "properties":{
+      "_to":{
+         "description":"The attack pattern identifier in BRON.",
+         "type":"string",
+         "pattern": "capec/CA-\\d{1,3}"
+      },
+      "_from":{
+         "description":"The technique identifier in BRON.",
+         "type":"string",
+         "pattern": "technique/(T\\d{4}(\\.\\d{3})?)"
+      }
+ },
+    "required":[
+      "_from",
+      "_to"
+      ]
+  }

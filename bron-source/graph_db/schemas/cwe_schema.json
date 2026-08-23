@@ -1,0 +1,88 @@
+{
+    "$schema":"http://json-schema.org/draft-07/schema#",
+    "title":"cwe",
+    "description":"A weakness from MITRE CWE",
+    "type":"object",
+    "properties":{
+       "_key":{
+          "description":"The unique identifier for BRON.",
+          "type":"string",
+          "pattern": "CWE-\\d{1,4}"
+       },
+       "original_id":{
+        "description":"ID from MITRE CWE. E.g. '1004'",
+        "type":"string",
+        "pattern": "\\d"
+       },
+       "datatype":{
+        "description":"Name of datasource",
+        "type":"string", 
+        "pattern": "cwe"
+       },
+       "name":{
+        "description":"The name of the weakness. TODO write pattern",
+        "type":"string",
+        "minLength": 1
+       },
+       "metadata":{
+        "description":"Metadata",
+        "type":"object",
+        "properties": {
+            "extended_description": {
+                "description": "The extended description",
+                "type": "string"
+            },
+            "description": {
+                "description": "The description",
+                "type": ["string", "null"]
+            },
+            "likelihood_of_exploit": {
+                "description": "The likelihood of exploit. TODO get the patterns",
+                "type": "string"
+            },
+            "common_consequences": {
+                "description": "The common consequences. TODO get the patterns",
+                "type": "array",
+                "items": {
+                    "properties": {
+                        "Scope": {
+                            "description": "",
+                            "type": "string"
+                        },
+                        "Impact": {
+                            "description": "",
+                            "type": "string"
+                        },
+                        "Likelihood": {
+                            "description": "",
+                            "type": "string"
+                        },
+                        "Note": {
+                            "description": "",
+                            "type": ["string", "null"]
+                        }
+                    },
+                    "required": ["Scope"]
+                }
+            },
+            "applicable_platforms": {
+                "description": "The applicable platforms. TODO get the patterns",
+                "type": "array",
+                "items": {
+                    "type": "string"
+                }
+            }            
+            },
+            "required":[
+                "description"
+             ]
+       }
+    },
+    "required":[
+        "_key",
+        "name",
+        "metadata",
+        "datatype",
+        "original_id"
+     ]
+  }

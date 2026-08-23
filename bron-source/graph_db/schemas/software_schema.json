@@ -1,0 +1,55 @@
+{
+    "$schema":"http://json-schema.org/draft-07/schema#",
+    "title":"software",
+    "description":"A software in ATT&CK.",
+    "type":"object",
+    "properties":{
+       "_key":{
+          "description":"The unique identifier for BRON. Same as data source",
+          "type":"string",
+          "pattern": "S\\d{4}"
+       },
+       "original_id":{
+        "description":"ID from MITRE ATT&CK. E.g. 'S1013'",
+        "type":"string",
+        "pattern": "S\\d{4}"
+       },
+       "datatype":{
+        "description":"Name of datasource",
+        "type":"string", 
+        "pattern": "software"
+       },
+       "name":{
+        "description":"The name of the software. TODO write pattern",
+        "type":"string",
+        "minLength": 1
+       },
+       "metadata":{
+        "description":"Metadata",
+        "type":"object",
+        "properties": {
+            "description": {
+                "description": "The full description",
+                "type": "string",
+                "minLength": 1
+            },
+            "type": {
+                "description": "The type. TODO write pattern",
+                "type": "string"
+            }
+            },
+            "required":[
+                "description",
+                "type"
+             ]         
+       }
+	
+    },
+    "required":[
+        "_key",
+        "name",
+	"metadata",
+        "datatype",
+        "original_id"
+     ]
+  }

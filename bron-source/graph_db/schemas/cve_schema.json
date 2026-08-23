@@ -1,0 +1,73 @@
+{
+    "$schema":"http://json-schema.org/draft-07/schema#",
+    "title":"cve",
+    "description":"An attack pattern from NIST CVE",
+    "type":"object",
+    "properties":{
+       "_key":{
+          "description":"The unique identifier for BRON. Same as data source",
+          "type":"string",
+          "pattern": "CVE-\\d{4}-\\d{4,7}"
+       },
+       "original_id":{
+        "description":"ID from NIST CVE. E.g. ''",
+        "type":"string",
+        "pattern": "CVE-\\d{4}-\\d{4,7}"
+       },
+       "datatype":{
+        "description":"Name of datasource",
+        "type":"string", 
+        "pattern": "cve"
+       },
+       "name":{
+        "description":"The name of the vulnerability. TODO write pattern",
+        "type":"string"
+       },
+       "metadata":{
+        "description":"Metadata",
+        "type":"object",
+        "properties": {
+            "description": {
+                "description": "The description",
+                "type": "string"
+            },
+            "weight": {
+                "description": "The CVSS score",
+                "type": "number",
+                "minimum": 0,
+                "maximum": 10
+
+            },
+            "impact": {
+                "description": "The CVSS impact. TODO schema for fields",
+                "type": "object"
+            },
+            "exploits" :{
+                "description": "Reference URLs with Exploit tag",
+                "type": "array",
+                "items": {
+                    "type":"string",
+                    "description": "URL to reference. TODO URL pattern"              
+                }
+            },
+            "cpes": {
+                "description": "Different CPEs, from node. TODO get schema",
+                "type": "array"
+                }
+            },
+            "required":[
+                "description",
+                "weight",
+                "cpes",
+                "impact"
+             ]         
+       }
+    },
+    "required":[
+        "_key",
+        "name",
+        "metadata",
+        "datatype",
+        "original_id"
+     ]
+  }
