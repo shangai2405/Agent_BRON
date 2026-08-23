@@ -65,27 +65,35 @@ source venv/bin/activate  # On Windows: venv\Scripts\activate
 pip install -r requirements.txt
 ```
 
-### 3. Setup Local Secrets & Configuration
-Create a `.env` file in the `backend/` directory to configure the Metasploit RPC credentials:
+## Metasploit RPC Setup (required for exploit-availability enrichment)
+
+The vulnerability assessment stage checks CVEs against Metasploit's exploit module database. This requires a running `msfrpcd` container and a shared password between the backend and Docker Compose.
+
+1. Copy the example env files and fill in a password (use the same value in both):
 ```bash
-touch .env
-echo "MSF_RPC_PASS=your-strong-password-here" >> .env
+cp backend/.env.example backend/.env
+cp bron-source/.env.example bron-source/.env
 ```
+   Edit both `.env` files and set `MSF_RPC_PASS` to the same value in each. No quotes, no spaces around the `=`.
 
----
-
-## Running Infrastructure Services
-
-Ensure you have Docker installed. Use the Compose file located in `bron-source/` to start the backend services:
-
+2. Start the Metasploit RPC container:
 ```bash
 cd bron-source
-# Start ArangoDB and Metasploit RPC container
-docker compose up -d
+docker-compose up -d msfrpc --force-recreate
+docker logs msfrpc
+```
+   Wait for `MSGRPC ready at ...` or `MSGRPC starting... (NO SSL)` in the logs before continuing.
+
+3. Restart the backend so it picks up the password:
+```bash
+cd backend
+python3 app.py
 ```
 
-* **ArangoDB**: Runs locally to cache/load graph elements or verify connections.
-* **Metasploit RPC (`msfrpcd`)**: Starts a background Metasploit container with MSF API endpoints listening on port `55553`.
+**Troubleshooting:**
+- `KeyError: 'MSF_RPC_PASS'` → `.env` is missing or Flask wasn't restarted after editing it.
+- `MsfRPC: Authentication failed` → the password in `backend/.env` doesn't match `bron-source/.env`. They must be identical.
+- First vulnerability-assessment run after startup is slower than usual — it builds a one-time CVE-to-module index across all Metasploit modules.
 
 ---
 
