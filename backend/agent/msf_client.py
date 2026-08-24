@@ -16,16 +16,28 @@ class MSFClient:
     """
 
     def __init__(self, password: str, host: str = "localhost", port: int = 55553, use_ssl: bool = False):
-        self.client = MsfRpcClient(
-            password,
-            server=host,
-            port=port,
-            ssl=use_ssl
-        )
+        try:
+            self.client = MsfRpcClient(
+                password,
+                server=host,
+                port=port,
+                ssl=use_ssl
+            )
+        except Exception as e:
+            print(f"[-] Warning: Failed to connect to Metasploit RPC server at {host}:{port} - {e}")
+            self.client = None
         self._cve_index = None  # built lazily on first search_by_cve call
 
+    def is_available(self) -> bool:
+        return self.client is not None
+
     def list_exploit_modules(self):
-        return self.client.modules.exploits
+        if not self.is_available():
+            return []
+        try:
+            return self.client.modules.exploits
+        except Exception:
+            return []
 
     def build_cve_index(self):
         """
@@ -34,20 +46,27 @@ class MSFClient:
         per MSFClient instance -- after this, search_by_cve is instant.
         """
         index = {}
-        for name in self.client.modules.exploits:
-            try:
-                mod = self.client.modules.use('exploit', name)
-                for ref in mod.references:
-                    if ref.upper().startswith("CVE-"):
-                        index.setdefault(ref.upper(), []).append(name)
-            except Exception:
-                # Some modules fail to load metadata (deprecated/broken modules) -- skip them
-                continue
+        if not self.is_available():
+            return index
+        try:
+            for name in self.client.modules.exploits:
+                try:
+                    mod = self.client.modules.use('exploit', name)
+                    for ref in mod.references:
+                        if ref.upper().startswith("CVE-"):
+                            index.setdefault(ref.upper(), []).append(name)
+                except Exception:
+                    # Some modules fail to load metadata (deprecated/broken modules) -- skip them
+                    continue
+        except Exception as e:
+            print(f"[-] Warning: Error building Metasploit CVE index - {e}")
         self._cve_index = index
         return index
 
     def search_by_cve(self, cve_id: str):
         """Return MSF module names referencing the given CVE, using the cached index."""
+        if not self.is_available():
+            return []
         if self._cve_index is None:
             self.build_cve_index()
         return self._cve_index.get(cve_id.upper(), [])

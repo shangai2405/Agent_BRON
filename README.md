@@ -28,15 +28,53 @@ This tool performs a passive scan on any target domain to look up:
 
 ## How to Run
 
-1. **Start the Flask server**:
-   ```bash
-   python3 backend/app.py
-   ```
-2. **Open your browser**:
-   Go to: **[http://localhost:5050/](http://localhost:5050/)**
-3. Type in any domain (e.g., `example.com`) and click **Analyze**.
+### 1. Configure virtual environment & install requirements
+```bash
+cd backend
+python3 -m venv venv
+source venv/bin/activate
+pip install -r requirements.txt
+```
 
+### 2. Metasploit RPC Setup (required for exploit-enrichment)
+The vulnerability assessment stage checks CVEs against Metasploit's exploit module database. This requires a running `msfrpcd` container and a shared password between the backend and Docker Compose.
 
-USERNAME AND PASSWORD 
+* Copy the example env files and set the same `MSF_RPC_PASS` value in both:
+  ```bash
+  cp backend/.env.example backend/.env
+  cp bron-source/.env.example bron-source/.env
+  ```
+  Edit both `.env` files to set `MSF_RPC_PASS` to the same password value. No quotes or spaces around `=`.
+* Start the Metasploit RPC container:
+  ```bash
+  cd bron-source
+  docker-compose up -d msfrpc --force-recreate
+  docker logs msfrpc
+  ```
+  Wait for `MSGRPC starting... (NO SSL)` in the logs before continuing.
 
-user 	pass123
+### 3. Launch Flask server
+Ensure your virtual environment is active:
+```bash
+cd backend
+source venv/bin/activate
+python3 app.py
+```
+Open **[http://localhost:5050/](http://localhost:5050/)** in your web browser.
+
+---
+
+## Troubleshooting
+
+* `KeyError: 'MSF_RPC_PASS'` → `.env` is missing or Flask was not restarted after editing.
+* `MsfRPC: Authentication failed` → password in `backend/.env` doesn't match `bron-source/.env`.
+* First scan takes longer than usual because it compiles a cached index map of all Metasploit exploit modules for fast subsequent lookups.
+
+---
+
+## Login Credentials
+
+| Username | Password | Role |
+| :--- | :--- | :--- |
+| **`admin`** | **`bron123`** | Administrator Access |
+| **`user`** | **`pass123`** | Standard User |
