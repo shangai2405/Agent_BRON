@@ -1,6 +1,7 @@
 import os
 import time
 import requests
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from dotenv import load_dotenv
 
 from .msf_client import MSFClient
@@ -204,38 +205,45 @@ def fetch_cves(tech, max_results=5):
     return cves
 
 
-# run check on all found techs....
+# run check on all found techs — concurrent parallel scanning....
 def run_vuln_assessment(detected_technologies):
     all_cves, errors, tech_summary = [], [], {}
 
     # --- Metasploit integration ---
-    # Set up the RPC client + mapper ONCE, outside the loop, so we don't
-    # reopen an msfrpcd connection for every technology scanned.
+    # Set up the RPC client + mapper ONCE, shared across all threads.
     # Requires MSF_RPC_PASS in your .env (see msf_client.py / docker-compose msfrpc service).
-    msf_client = MSFClient(password=os.environ["MSF_RPC_PASS"])
+    msf_client = MSFClient(password=os.getenv("MSF_RPC_PASS", ""))
     mapper = MSFMapper(msf_client)
 
-    # loop all detected technologies to query cves....
-    for i, tech in enumerate(detected_technologies):
-        if i > 0: time.sleep(6)
+    # fetch + enrich one technology — runs in parallel across all techs....
+    def fetch_one(tech):
         cves = fetch_cves(tech, max_results=5)
         valid = [c for c in cves if "error" not in c]
         err   = [c for c in cves if "error" in c]
-
-        # --- Metasploit integration ---
-        # For each valid CVE found for this tech, check whether Metasploit
-        # has a matching exploit module. Adds 'msf_modules' (list of module
-        # names) and 'exploit_available' (bool) to each cve_record.
+        # Metasploit enrichment — adds 'msf_modules' and 'exploit_available' per CVE.
         valid = mapper.enrich_vulnerabilities(valid)
+        return tech, valid, err
 
-        all_cves.extend(valid)
-        if err: errors.append(f"{tech['name']}: {err[0]['error']}")
-        tech_summary[tech["name"]] = {
-            "cve_count": len(valid),
-            "max_severity": max((c["severity"] for c in valid), default="NONE"),
-            "max_cvss": max((c["cvss_score"] for c in valid), default=0.0),
-            # convenient rollup for the report/compliance stage
-            "exploitable_cve_count": sum(1 for c in valid if c.get("exploit_available"))
-        }
+    # Fire all NVD lookups in parallel (max 5 concurrent threads).
+    # Eliminates the 6s sleep between each technology — all queries run at once.
+    with ThreadPoolExecutor(max_workers=5) as pool:
+        futures = {pool.submit(fetch_one, tech): tech for tech in detected_technologies}
+        for future in as_completed(futures):
+            try:
+                tech, valid, err = future.result()
+            except Exception as e:
+                tech = futures[future]
+                errors.append(f"{tech['name']}: {str(e)}")
+                continue
+            all_cves.extend(valid)
+            if err: errors.append(f"{tech['name']}: {err[0]['error']}")
+            tech_summary[tech["name"]] = {
+                "cve_count": len(valid),
+                "max_severity": max((c["severity"] for c in valid), default="NONE"),
+                "max_cvss": max((c["cvss_score"] for c in valid), default=0.0),
+                # convenient rollup for the report/compliance stage
+                "exploitable_cve_count": sum(1 for c in valid if c.get("exploit_available"))
+            }
+
     all_cves.sort(key=lambda x: x["cvss_score"], reverse=True)
     return {"total_cves": len(all_cves), "cves": all_cves, "tech_summary": tech_summary, "errors": errors}
