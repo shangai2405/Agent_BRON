@@ -169,8 +169,13 @@ def enrich_cve_details(cve):
 # query nvd to get cves for technology....
 def fetch_cves(tech, max_results=5):
     keyword = tech.get("cpe_keyword", tech.get("name",""))
+    params = {"keywordSearch": keyword, "resultsPerPage": max_results}
+    # use api key if available — bumps rate limit from 5/30s to 50/30s and cuts response time....
+    nvd_key = os.getenv("NVD_API_KEY")
+    if nvd_key:
+        params["apiKey"] = nvd_key
     try:
-        resp = requests.get(NVD_API, params={"keywordSearch": keyword, "resultsPerPage": max_results}, timeout=15)
+        resp = requests.get(NVD_API, params=params, timeout=15)
         resp.raise_for_status()
         data = resp.json()
     except Exception as e:
