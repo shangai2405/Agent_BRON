@@ -1,0 +1,50 @@
+services:
+  brondb:
+    platform: linux/arm64
+    container_name: brondb
+    image: arangodb:3.12.4
+    environment:
+      ARANGO_ROOT_PASSWORD_FILE: /run/secrets/arango_root_password
+    ports:
+      - 8529:8529
+    secrets:
+      - arango_root_password
+    volumes:
+      - brondb_data_container:/var/lib/arangodb3
+      - brondb_apps_data_container:/var/lib/arangodb3-apps
+
+  bootstrap:
+    platform: linux/arm64
+    container_name: bootstrap
+    build: .
+    image: bronbootstrap
+    working_dir: /usr/local/bron
+    command: bash bootstrap.sh
+    environment:
+      DATA_DIR: /data
+      ARANGO_ROOT_PASSWORD_FILE: /run/secrets/arango_root_password
+    secrets:
+      - arango_root_password
+    volumes:
+      - .:/usr/local/bron
+      - bootstrap_data_container:/data
+    links:
+      - brondb
+    depends_on:
+      - brondb
+
+  msfrpc:
+    container_name: msfrpc
+    image: metasploitframework/metasploit-framework
+    command: ./msfrpcd -P ${MSF_RPC_PASS} -U msf -a 0.0.0.0 -p 55553 -S -f
+    ports:
+      - "55553:55553"
+
+secrets:
+  arango_root_password:
+    file: ./arango_root_password
+
+volumes:
+  brondb_data_container:
+  brondb_apps_data_container:
+  bootstrap_data_container:

@@ -1,0 +1,22 @@
+{
+    "$schema":"http://json-schema.org/draft-07/schema#",
+    "title":"D3fend_mitigationTechnique",
+    "description":"A link between a defensive mitigation and a technique",
+    "type":"object",
+    "properties":{
+      "_to":{
+         "description":"The defensive mitigation identifier in BRON.",
+         "type":"string",
+         "pattern": "d3fend_mitigation/D3[A-Z]?-[A-Z]+"
+      },
+      "_from":{
+         "description":"The technique identifier in BRON.",
+         "type":"string",
+         "pattern": "technique/(T\\d{4}(\\.\\d{3})?)"
+      }
+ },
+    "required":[
+      "_from",
+      "_to"
+      ]
+  }

@@ -329,7 +329,7 @@ function renderScoreCards(compliance) {
     var el = document.createElement("div");
     el.className = "score-card" + (card.clickable ? " clickable" : "");
     if (card.clickable) {
-      el.setAttribute("onclick", card.onClick);
+      el.addEventListener("click", function(e) { e.stopPropagation(); openSidebar(); });
       el.setAttribute("title", "Click to open vulnerabilities sidebar");
     }
     var subtextHtml = card.subtext ? '<div class="score-card-subtext">' + card.subtext + '</div>' : '';
@@ -777,104 +777,235 @@ function scoreHex(score) {
   return "#f04060";
 }
 
-// generate and download compliance report as text file....
+// generate interactive PDF-ready report that opens in a new tab....
 function downloadReport() {
   if (!currentData || !currentData.stages || !currentData.stages.compliance) {
-    alert("No compliance data to download.");
+    alert("No report data available. Please run an analysis first.");
     return;
   }
+
   var c = currentData.stages.compliance.data;
   var target = currentData.target || "Unknown Target";
   var now = new Date().toLocaleString();
-  var lines = [];
-
-  lines.push("BRON Compliance Report");
-  lines.push("Target: " + target);
-  lines.push("Generated: " + now);
-  lines.push("");
-  lines.push("--- SCORES ---");
   var s = c.scores || {};
-  lines.push("Overall:          " + (s.overall || "N/A") + "%");
-  lines.push("NIST 800-53:      " + (s.nist_compliance || "N/A") + "%");
-  lines.push("CIS Controls:     " + (s.cis_compliance || "N/A") + "%");
-  lines.push("OWASP Top 10:     " + (s.owasp_compliance || "N/A") + "%");
-  lines.push("Security Headers: " + (s.security_headers || "N/A") + "%");
-  lines.push("");
-
-  lines.push("--- VULNERABILITIES DETECTED ---");
-  var vulnData = null;
-  if (currentData.stages.vulnerability && currentData.stages.vulnerability.data) {
-    vulnData = currentData.stages.vulnerability.data;
-  }
+  var vulnData = (currentData.stages.vulnerability && currentData.stages.vulnerability.data) ? currentData.stages.vulnerability.data : null;
   var cves = vulnData ? (vulnData.cves || []) : [];
-  if (cves.length === 0) {
-    lines.push("  None");
-  } else {
-    for (var v = 0; v < cves.length; v++) {
-      var cve = cves[v];
-      lines.push("  [" + cve.cve_id + "] " + cve.severity + " (CVSS " + cve.cvss_score + ")");
-      lines.push("    Technology:       " + cve.tech + (cve.tech_version ? " v" + cve.tech_version : ""));
-      lines.push("    Description:      " + cve.description);
-      lines.push("    Root Cause:       " + (cve.cause || "N/A"));
-      lines.push("    Attacker Action:  " + (cve.attacker_action || "N/A"));
-      lines.push("    Recommendation:   " + (cve.solution || "N/A"));
-      if (cve.cwes && cve.cwes.length > 0) {
-        lines.push("    Weaknesses:       " + cve.cwes.join(", "));
-      }
-      lines.push("");
-    }
-  }
-  lines.push("");
-
-  lines.push("--- NIST SP 800-53 CONTROLS TRIGGERED ---");
   var nist = c.nist_800_53 || [];
-  if (nist.length === 0) {
-    lines.push("  None");
-  } else {
-    for (var i = 0; i < nist.length; i++) {
-      lines.push("  [" + nist[i].control + "] " + nist[i].description);
-      lines.push("    Triggered by: " + nist[i].triggered_by.join(", "));
-    }
-  }
-  lines.push("");
-
-  lines.push("--- CIS CONTROLS TRIGGERED ---");
   var cis = c.cis_controls || [];
-  if (cis.length === 0) {
-    lines.push("  None");
-  } else {
-    for (var j = 0; j < cis.length; j++) {
-      lines.push("  [" + cis[j].control + "] " + cis[j].description);
-      lines.push("    Triggered by: " + cis[j].triggered_by.join(", "));
-    }
-  }
-  lines.push("");
-
-  lines.push("--- OWASP TOP 10 TRIGGERED ---");
   var owasp = c.owasp_top10 || [];
-  if (owasp.length === 0) {
-    lines.push("  None");
-  } else {
-    for (var k = 0; k < owasp.length; k++) {
-      lines.push("  [" + owasp[k].id + "] " + owasp[k].name);
-      lines.push("    Via CWEs: " + owasp[k].triggered_by_cwes.join(", "));
-    }
-  }
-  lines.push("");
-
-  lines.push("--- SECURITY HEADERS ---");
   var hdrs = c.security_headers || [];
-  for (var h = 0; h < hdrs.length; h++) {
-    lines.push("  [" + hdrs[h].status + "] " + hdrs[h].header + (hdrs[h].value ? " = " + hdrs[h].value : ""));
+
+  // severity color helpers....
+  function sevColor(sev) {
+    if (!sev) return "#888";
+    var s = sev.toUpperCase();
+    if (s === "CRITICAL") return "#d63031";
+    if (s === "HIGH")     return "#e17055";
+    if (s === "MEDIUM")   return "#f0a500";
+    if (s === "LOW")      return "#00b894";
+    return "#636e72";
+  }
+  function scoreColor(val) {
+    if (val == null || val === "N/A") return "#f0a500";
+    if (val >= 70) return "#00b894";
+    if (val >= 40) return "#f0a500";
+    return "#d63031";
+  }
+  function scoreRing(val, label) {
+    var color = scoreColor(val);
+    var display = (val == null || val === "N/A") ? "N/A" : val + "%";
+    return '<div style="display:flex;flex-direction:column;align-items:center;gap:6px;">' +
+      '<div style="width:80px;height:80px;border-radius:50%;border:5px solid ' + color + ';display:flex;align-items:center;justify-content:center;font-size:17px;font-weight:700;color:' + color + ';">' + display + '</div>' +
+      '<div style="font-size:11px;color:#aab;text-align:center;max-width:90px;">' + label + '</div></div>';
   }
 
-  var blob = new Blob([lines.join("\n")], { type: "text/plain" });
-  var url = URL.createObjectURL(blob);
-  var a = document.createElement("a");
-  a.href = url;
-  a.download = "bron_compliance_report.txt";
-  a.click();
-  URL.revokeObjectURL(url);
+  // CVE count by severity....
+  var sev_counts = { CRITICAL: 0, HIGH: 0, MEDIUM: 0, LOW: 0 };
+  cves.forEach(function(c) { if (sev_counts[c.severity] !== undefined) sev_counts[c.severity]++; });
+  var exploit_count = cves.filter(function(c) { return c.exploit_available; }).length;
+
+  // build CVE cards HTML....
+  var cveHtml = "";
+  if (cves.length === 0) {
+    cveHtml = '<p style="color:#aab;text-align:center;padding:20px;">No vulnerabilities detected.</p>';
+  } else {
+    cves.forEach(function(cve, idx) {
+      var sc = sevColor(cve.severity);
+      var exploitBadge = cve.exploit_available
+        ? '<span style="background:linear-gradient(135deg,#d63031,#e17055);color:#fff;font-size:10px;font-weight:700;padding:3px 8px;border-radius:4px;margin-left:8px;letter-spacing:.5px;">💥 KNOWN EXPLOIT</span>'
+        : '';
+      var msfHtml = (cve.exploit_available && cve.msf_modules && cve.msf_modules.length)
+        ? '<div style="margin-top:10px;background:#1a0a0a;border-radius:6px;padding:10px 14px;border-left:3px solid #d63031;">' +
+          '<div style="font-size:10px;font-weight:600;color:#d63031;margin-bottom:6px;letter-spacing:.5px;">METASPLOIT MODULES</div>' +
+          cve.msf_modules.map(function(m){ return '<div style="font-family:monospace;font-size:11px;color:#ff7675;margin:2px 0;">• ' + m + '</div>'; }).join('') +
+          '</div>' : '';
+      cveHtml +=
+        '<div style="background:#13151f;border:1px solid #23263a;border-left:4px solid ' + sc + ';border-radius:10px;padding:18px 20px;margin-bottom:16px;page-break-inside:avoid;">' +
+          '<div style="display:flex;align-items:center;flex-wrap:wrap;gap:8px;margin-bottom:12px;">' +
+            '<span style="font-family:monospace;font-size:13px;font-weight:700;color:#e0e6ff;">' + cve.cve_id + '</span>' +
+            '<span style="background:' + sc + ';color:#fff;font-size:10px;font-weight:700;padding:3px 9px;border-radius:20px;">' + (cve.severity || "?") + '</span>' +
+            '<span style="background:#1e2235;color:#8892b0;font-size:11px;padding:3px 9px;border-radius:20px;">CVSS ' + (cve.cvss_score || 0) + '</span>' +
+            '<span style="background:#1e2235;color:#8892b0;font-size:11px;padding:3px 9px;border-radius:20px;">' + cve.tech + (cve.tech_version ? ' v' + cve.tech_version : '') + '</span>' +
+            exploitBadge +
+          '</div>' +
+          '<p style="font-size:12px;color:#c0c8e0;line-height:1.6;margin:0 0 12px;">' + (cve.description || '') + '</p>' +
+          '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:4px;">' +
+            '<div style="background:#0d1117;border-radius:8px;padding:12px;border-left:3px solid #6c63ff;">' +
+              '<div style="font-size:10px;font-weight:700;color:#6c63ff;letter-spacing:.5px;margin-bottom:5px;">🔍 ROOT CAUSE</div>' +
+              '<div style="font-size:11px;color:#a8b2d8;line-height:1.6;">' + (cve.cause || 'Not available') + '</div>' +
+            '</div>' +
+            '<div style="background:#0d1117;border-radius:8px;padding:12px;border-left:3px solid #e17055;">' +
+              '<div style="font-size:10px;font-weight:700;color:#e17055;letter-spacing:.5px;margin-bottom:5px;">⚠️ ATTACKER ACTION</div>' +
+              '<div style="font-size:11px;color:#a8b2d8;line-height:1.6;">' + (cve.attacker_action || 'Not available') + '</div>' +
+            '</div>' +
+          '</div>' +
+          '<div style="background:#0a1a0a;border-radius:8px;padding:12px;border-left:3px solid #00b894;margin-top:10px;">' +
+            '<div style="font-size:10px;font-weight:700;color:#00b894;letter-spacing:.5px;margin-bottom:5px;">✅ RECOMMENDED SOLUTION</div>' +
+            '<div style="font-size:11px;color:#a8b2d8;line-height:1.6;">' + (cve.solution || 'Keep software updated and follow vendor advisories.') + '</div>' +
+          '</div>' +
+          msfHtml +
+          (cve.cwes && cve.cwes.length ? '<div style="margin-top:10px;font-size:10px;color:#636e72;">Weaknesses: <span style="color:#8892b0;">' + cve.cwes.join(", ") + '</span></div>' : '') +
+          '<div style="margin-top:8px;font-size:10px;"><a href="' + cve.nvd_url + '" style="color:#6c63ff;">NVD Reference ↗</a></div>' +
+        '</div>';
+    });
+  }
+
+  // Compliance table builder....
+  function complianceTable(rows, cols) {
+    if (!rows || rows.length === 0) return '<p style="color:#636e72;font-size:12px;">No controls triggered.</p>';
+    var th = cols.map(function(c){ return '<th style="background:#1e2235;color:#8892b0;font-size:11px;font-weight:600;padding:8px 12px;text-align:left;border-bottom:1px solid #23263a;">' + c + '</th>'; }).join('');
+    var trs = rows.map(function(r){
+      var cells = Object.values(r).map(function(v){
+        return '<td style="padding:8px 12px;font-size:11px;color:#c0c8e0;border-bottom:1px solid #1a1d2e;vertical-align:top;">' + (Array.isArray(v) ? v.join(', ') : (v || '')) + '</td>';
+      }).join('');
+      return '<tr>' + cells + '</tr>';
+    }).join('');
+    return '<table style="width:100%;border-collapse:collapse;"><thead><tr>' + th + '</tr></thead><tbody>' + trs + '</tbody></table>';
+  }
+
+  var nistHtml = complianceTable(nist.map(function(r){ return {Control: r.control, Description: r.description, "Triggered By": r.triggered_by}; }), ["Control","Description","Triggered By"]);
+  var cisHtml  = complianceTable(cis.map(function(r){  return {Control: r.control, Description: r.description, "Triggered By": r.triggered_by}; }), ["Control","Description","Triggered By"]);
+  var owaspHtml= complianceTable(owasp.map(function(r){ return {ID: r.id, Name: r.name, "Via CWEs": r.triggered_by_cwes}; }), ["ID","Name","Via CWEs"]);
+
+  // Security headers table....
+  var hdrRows = hdrs.map(function(h) {
+    var pass = h.status === "PASS";
+    return '<tr>' +
+      '<td style="padding:8px 12px;font-size:11px;color:#c0c8e0;border-bottom:1px solid #1a1d2e;">' + h.header + '</td>' +
+      '<td style="padding:8px 12px;border-bottom:1px solid #1a1d2e;">' +
+        '<span style="background:' + (pass ? "#00b89422" : "#d6303122") + ';color:' + (pass ? "#00b894" : "#d63031") + ';font-size:10px;font-weight:700;padding:3px 8px;border-radius:20px;">' + (pass ? "✓ PASS" : "✗ FAIL") + '</span>' +
+      '</td>' +
+      '<td style="padding:8px 12px;font-size:10px;color:#636e72;border-bottom:1px solid #1a1d2e;word-break:break-all;">' + (h.value || "—") + '</td>' +
+    '</tr>';
+  }).join('');
+  var hdrTable = hdrs.length
+    ? '<table style="width:100%;border-collapse:collapse;"><thead><tr>' +
+        ['Header','Status','Value'].map(function(c){ return '<th style="background:#1e2235;color:#8892b0;font-size:11px;font-weight:600;padding:8px 12px;text-align:left;border-bottom:1px solid #23263a;">' + c + '</th>'; }).join('') +
+      '</tr></thead><tbody>' + hdrRows + '</tbody></table>'
+    : '<p style="color:#636e72;font-size:12px;">No header data.</p>';
+
+  // Full HTML document....
+  var html = '<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8">' +
+    '<title>BRON Security Report — ' + target + '</title>' +
+    '<style>' +
+      '*{box-sizing:border-box;margin:0;padding:0;}' +
+      'body{background:#0b0d14;color:#e0e6ff;font-family:"Segoe UI",Inter,system-ui,sans-serif;font-size:13px;}' +
+      '.page{max-width:900px;margin:0 auto;padding:40px 32px;}' +
+      'h2{font-size:16px;font-weight:700;color:#e0e6ff;margin:0 0 16px;padding-bottom:8px;border-bottom:1px solid #23263a;}' +
+      'section{margin-bottom:40px;}' +
+      '.print-btn{position:fixed;top:20px;right:20px;background:linear-gradient(135deg,#6c63ff,#a855f7);color:#fff;border:none;border-radius:8px;padding:12px 22px;font-size:13px;font-weight:700;cursor:pointer;box-shadow:0 4px 20px rgba(108,99,255,.4);letter-spacing:.3px;z-index:999;}' +
+      '.print-btn:hover{opacity:.88;}' +
+      '@media print{.print-btn{display:none!important;}body{background:#fff;color:#111;}' +
+      '.page{max-width:100%;padding:20px;}' +
+      'h2{color:#111;border-color:#ddd;}' +
+      '}' +
+    '</style></head><body>' +
+    '<button class="print-btn" onclick="window.print()">⬇ Save as PDF</button>' +
+    '<div class="page">' +
+
+    // Cover header....
+    '<div style="background:linear-gradient(135deg,#0f1629 0%,#161b35 100%);border:1px solid #23263a;border-radius:16px;padding:36px 32px;margin-bottom:40px;position:relative;overflow:hidden;">' +
+      '<div style="position:absolute;top:-40px;right:-40px;width:200px;height:200px;background:radial-gradient(circle,#6c63ff22,transparent 70%);border-radius:50%;pointer-events:none;"></div>' +
+      '<div style="display:flex;align-items:center;gap:12px;margin-bottom:20px;">' +
+        '<div style="background:linear-gradient(135deg,#6c63ff,#a855f7);border-radius:10px;padding:10px;display:flex;align-items:center;justify-content:center;">' +
+          '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>' +
+        '</div>' +
+        '<div>' +
+          '<div style="font-size:11px;font-weight:600;color:#8892b0;letter-spacing:1px;text-transform:uppercase;">BRON Security Agent</div>' +
+          '<div style="font-size:22px;font-weight:800;color:#fff;line-height:1.2;">Threat Assessment Report</div>' +
+        '</div>' +
+      '</div>' +
+      '<div style="display:flex;flex-wrap:wrap;gap:20px;margin-bottom:28px;">' +
+        '<div><div style="font-size:10px;color:#636e72;font-weight:600;letter-spacing:.5px;">TARGET</div><div style="font-size:15px;font-weight:700;color:#e0e6ff;font-family:monospace;">' + target + '</div></div>' +
+        '<div><div style="font-size:10px;color:#636e72;font-weight:600;letter-spacing:.5px;">GENERATED</div><div style="font-size:13px;color:#a8b2d8;">' + now + '</div></div>' +
+        '<div><div style="font-size:10px;color:#636e72;font-weight:600;letter-spacing:.5px;">TOTAL CVEs</div><div style="font-size:15px;font-weight:700;color:#e0e6ff;">' + cves.length + '</div></div>' +
+        '<div><div style="font-size:10px;color:#636e72;font-weight:600;letter-spacing:.5px;">EXPLOITABLE</div><div style="font-size:15px;font-weight:700;color:' + (exploit_count ? '#d63031' : '#00b894') + ';">' + exploit_count + '</div></div>' +
+      '</div>' +
+      // Score rings row....
+      '<div style="display:flex;flex-wrap:wrap;gap:24px;justify-content:center;background:#0b0e1c;border-radius:10px;padding:20px;">' +
+        scoreRing(s.overall, "Overall Score") +
+        scoreRing(s.nist_compliance, "NIST 800-53") +
+        scoreRing(s.cis_compliance, "CIS Controls") +
+        scoreRing(s.owasp_compliance, "OWASP Top 10") +
+        scoreRing(s.security_headers, "Sec Headers") +
+      '</div>' +
+    '</div>' +
+
+    // Severity summary....
+    '<section>' +
+      '<h2>Vulnerability Severity Summary</h2>' +
+      '<div style="display:flex;gap:12px;flex-wrap:wrap;">' +
+        ['CRITICAL','HIGH','MEDIUM','LOW'].map(function(sev){
+          return '<div style="flex:1;min-width:100px;background:#13151f;border:1px solid #23263a;border-top:3px solid ' + sevColor(sev) + ';border-radius:10px;padding:16px;text-align:center;">' +
+            '<div style="font-size:28px;font-weight:800;color:' + sevColor(sev) + ';">' + (sev_counts[sev] || 0) + '</div>' +
+            '<div style="font-size:11px;color:#8892b0;margin-top:4px;font-weight:600;">' + sev + '</div>' +
+          '</div>';
+        }).join('') +
+      '</div>' +
+    '</section>' +
+
+    // CVE detail cards....
+    '<section>' +
+      '<h2>Vulnerabilities Detected (' + cves.length + ')</h2>' +
+      cveHtml +
+    '</section>' +
+
+    // NIST....
+    '<section style="page-break-before:always;">' +
+      '<h2>NIST SP 800-53 Controls Triggered</h2>' +
+      '<div style="background:#13151f;border:1px solid #23263a;border-radius:10px;overflow:hidden;">' + nistHtml + '</div>' +
+    '</section>' +
+
+    // CIS....
+    '<section>' +
+      '<h2>CIS Controls Triggered</h2>' +
+      '<div style="background:#13151f;border:1px solid #23263a;border-radius:10px;overflow:hidden;">' + cisHtml + '</div>' +
+    '</section>' +
+
+    // OWASP....
+    '<section>' +
+      '<h2>OWASP Top 10 Triggered</h2>' +
+      '<div style="background:#13151f;border:1px solid #23263a;border-radius:10px;overflow:hidden;">' + owaspHtml + '</div>' +
+    '</section>' +
+
+    // Security Headers....
+    '<section>' +
+      '<h2>Security Headers</h2>' +
+      '<div style="background:#13151f;border:1px solid #23263a;border-radius:10px;overflow:hidden;">' + hdrTable + '</div>' +
+    '</section>' +
+
+    // Footer....
+    '<div style="text-align:center;padding:24px 0;border-top:1px solid #23263a;color:#636e72;font-size:10px;letter-spacing:.3px;">Generated by BRON Security Agent — For authorized security assessment use only</div>' +
+
+    '</div></body></html>';
+
+  var reportWin = window.open("", "_blank");
+  if (!reportWin) {
+    alert("Pop-up was blocked. Please allow pop-ups for this page to view the report.");
+    return;
+  }
+  reportWin.document.write(html);
+  reportWin.document.close();
 }
 
 var TOOLTIPS = {

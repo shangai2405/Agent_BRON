@@ -140,3 +140,4 @@ cython_debug/
 Thumbs.db
 __pycache__/
 *.pyc
+bron-source/arango_root_password

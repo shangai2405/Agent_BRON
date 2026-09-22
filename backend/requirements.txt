@@ -4,3 +4,7 @@ requests==2.32.3
 python-dotenv==1.0.1
 python-arango==8.1.4
 pymetasploit3==1.0.6
+mmh3==5.3.0
+lightgbm==4.7.0
+scikit-learn==1.9.1
+joblib==1.6.0

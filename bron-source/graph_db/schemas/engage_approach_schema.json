@@ -1,0 +1,34 @@
+{
+    "$schema":"http://json-schema.org/draft-07/schema#",
+    "title":"engage_approach",
+    "description":"A defensive approach from MITRE ENGAGE",
+    "type":"object",
+    "properties":{
+       "_key":{
+          "description":"The unique identifier for BRON. Same as data source",
+          "type":"string",
+          "pattern": "[ES]AP\\d{4}"
+       },
+       "original_id":{
+        "description":"ID from MITRE ENGAGE. E.g. 'EAP0001'",
+        "type":"string",
+        "pattern": "[ES]AP\\d{4}"
+       },
+       "datatype":{
+        "description":"Name of datasource",
+        "type":"string", 
+        "pattern": "engage_approach"
+       },
+       "name":{
+        "description":"The name of the approach. TODO write pattern",
+        "type":"string",
+        "minLength": 1
+       }
+    },
+    "required":[
+        "_key",
+        "name",
+        "datatype",
+        "original_id"
+     ]
+  }

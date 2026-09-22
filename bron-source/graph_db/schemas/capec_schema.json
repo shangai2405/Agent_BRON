@@ -1,0 +1,112 @@
+{
+    "$schema":"http://json-schema.org/draft-07/schema#",
+    "title":"capec",
+    "description":"An attack pattern from MITRE CAPEC",
+    "type":"object",
+    "properties":{
+       "_key":{
+        "description":"The unique identifier for BRON. ",
+        "type":"string",
+        "pattern": "CA-\\d{1,3}"
+       },
+       "original_id":{
+        "description":"ID from MITRE CAPEC. E.g. '1'",
+        "type":"string",
+        "pattern": "\\d"
+       },
+       "datatype":{
+        "description":"Name of datasource",
+        "type":"string", 
+        "pattern": "capec"
+       },
+       "name":{
+        "description":"The name of the attack pattern. TODO write pattern",
+        "type":"string",
+        "minLength": 1
+       },
+       "metadata":{
+        "description":"Metadata",
+        "type":"object",
+        "properties": {
+            "extended_description": {
+                "extended_description": "The extended description",
+                "type": "string"
+            },
+            "description": {
+                "description": "The description",
+                "type": "string"
+            },
+            "likelihood_of_attack": {
+                "description": "The likelihood of attack. TODO get the patterns",
+                "type": "string"
+            },
+            "typical_severity": {
+                "description": "The typical severity of attack. TODO get the patterns",
+                "type": "string"
+            },
+            "prerequisites": {
+                "description": "The prerequisites of attack. TODO get the patterns",
+                "type": "string"
+            },
+            "skills_required": {
+                "description": "The skills required for the attack. TODO get the patterns",
+                "type": "array",
+                "items": {
+                    "type": "object",
+                    "properties": {
+                        "level": {
+                            "description": "The skill level",
+                            "type": "string"
+                        },
+                        "skill": {
+                            "description": "The description",
+                            "type": "string"
+                        }
+                    },
+                    "required": ["level", "skill"]            
+                }
+            },
+            "consequences": {
+                "description": "The consequences of the attack. TODO get the patterns",
+                "type": "array",
+                "items": {
+                    "type": "object",
+                    "properties": {
+                        "Scope": {
+                            "description": "The scope",
+                            "type": "string"
+                        },
+                        "Impact": {
+                            "description": "The description",
+                            "type": "string"
+                        },
+                        "Likelihood": {
+                            "description": "The likelihood",
+                            "type": "string"
+                        }
+                    },
+                    "required": ["Scope"]
+                }
+            },
+            "resources_required": {
+                "description": "The resources required for attack. TODO get the patterns",
+                "type": "array",
+                "items": {
+                    "type": "string"
+                }
+            }
+            },
+            "required":[
+                "description",
+                "extended_description"
+             ]         
+       }
+    },
+    "required":[
+        "_key",
+        "name",
+        "metadata",
+        "datatype",
+        "original_id"
+     ]
+  }
